@@ -48,8 +48,8 @@ electrodes = ElectrodeSet(
 
 source_region = SourceRegion.from_bounding_box(
     mesh=volume_mesh,
-    bounds_min=[-0.1, -0.1, -0.1],
-    bounds_max=[0.1, 0.1, 0.1],
+    bounds_min=[-50, -50, -50],
+    bounds_max=[50, 50, 50],
     mode="center",
 )
 
