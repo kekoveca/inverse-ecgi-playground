@@ -71,19 +71,40 @@ print(report.summary)
 
 ## Gmsh / meshio import with physical tags
 
-The module now includes a tagged mesh container for meshes loaded through `meshio`:
+Модуль содержит контейнер `TaggedMesh` / `Mesh` для сеток, загруженных через `meshio` из Gmsh-файлов с physical groups. Подробная документация: [docs/tagged_mesh.md](docs/tagged_mesh.md).
+
+Внутренняя конвенция проекта для `field_data`:
+
+```python
+field_data: dict[str, tuple[int, int]]
+# name -> (dim, tag)
+```
+
+Например, для 3D-объема `domain` с tag `1`:
+
+```python
+tagged.field_data["domain"] == (3, 1)
+```
+
+`meshio` обычно возвращает пары в порядке `(tag, dim)`, поэтому `read_gmsh_meshio()` при чтении `.msh` переворачивает их во внутренний формат `(dim, tag)`.
+
+Минимальный пример:
 
 ```python
 from geometry import read_gmsh_meshio
 
-mesh = read_gmsh_meshio("torso.msh", dim=2)
-print(mesh.cells.keys())
-print(mesh.physical_tag("torso"))
+tagged = read_gmsh_meshio("examples/torso.msh", dim=3)
 
-domain = mesh.to_mesh_data("triangle", physical_name="torso")
+print(tagged.cells.keys())
+print(tagged.field_data)
+print(tagged.physical_dimension("domain"))
+print(tagged.physical_tag("domain"))
+
+volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
+surface_mesh = tagged.to_mesh_data("triangle", physical_name="boundary")
 ```
 
-Use `TaggedMesh` / `Mesh` when you need Gmsh physical groups, boundary tags, and several cell blocks. Use `MeshData` when a downstream component needs one concrete cell block, for example the 2D triangle domain or the 3D tetrahedral volume.
+Используйте `TaggedMesh` / `Mesh`, когда нужны Gmsh physical groups, boundary tags и несколько cell blocks в одном объекте. Используйте `MeshData`, когда downstream-компоненту нужен один конкретный блок: например 3D tetrahedral volume или surface mesh из triangles.
 
 
 ## Source region from bounding box

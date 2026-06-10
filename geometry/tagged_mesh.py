@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Tagged mesh container for Gmsh physical groups.
+
+Internal ``field_data`` uses the Gmsh API order ``name -> (dim, tag)``.
+When reading through meshio, ``_field_data_to_tuples`` converts meshio's
+``(tag, dim)`` values into this internal ``(dim, tag)`` convention.
+"""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
