@@ -1,6 +1,6 @@
 from .electrodes import ElectrodePlacementReport, ElectrodeSet, electrode_placement_report
-from .mesh_model import MeshData, MeshQualityReport, load_npz_mesh, quality_report, save_npz_mesh, tetra_volumes
-from .tagged_mesh import Mesh, TaggedMesh, read_gmsh_meshio
+from .mesh_model import MeshData, MeshQualityReport, load_npz_mesh, quality_report, read_gmsh_meshio, save_npz_mesh, tetra_volumes
+from .tagged_mesh import Mesh, TaggedMesh
 from .source_region import SourceRegion
 from .visualization import plot_mesh, plot_source_region, plot_torso_geometry
 from .torso_geometry import TorsoGeometry

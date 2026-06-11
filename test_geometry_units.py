@@ -57,7 +57,8 @@ def simple_geometry():
 def test_public_geometry_exports_are_available():
     for name in geometry.__all__:
         assert hasattr(geometry, name), name
-    assert geometry.Mesh is geometry.TaggedMesh
+    assert geometry.Mesh is geometry.MeshData
+    assert issubclass(geometry.TaggedMesh, geometry.MeshData)
 
 
 def test_mesh_data_properties_centers_metadata_and_npz_roundtrip(tmp_path):
@@ -219,7 +220,7 @@ def test_tagged_mesh_filters_physical_groups_and_converts_to_mesh_data():
 
     mesh = tagged.to_mesh_data("triangle", name="domain", physical_name="torso")
     assert mesh.name == "domain"
-    assert mesh.metadata["source"] == "TaggedMesh"
+    assert mesh.metadata["source"] == "MeshData"
     assert mesh.metadata["origin"] == "gmsh"
     assert mesh.metadata["physical_dimension"] == 2
     assert mesh.metadata["physical_tag"] == 7
@@ -275,9 +276,8 @@ def test_meshio_field_data_is_converted_to_internal_dimension_tag_order():
 
 
 def test_tagged_mesh_uses_internal_dimension_tag_order_for_manual_data():
-    tagged = Mesh(
-        dim=3,
-        coords=np.array(
+    tagged = MeshData.from_cell_blocks(
+        points=np.array(
             [
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -285,7 +285,7 @@ def test_tagged_mesh_uses_internal_dimension_tag_order_for_manual_data():
                 [0.0, 0.0, 1.0],
             ]
         ),
-        cells={
+        cell_blocks={
             "tetra": np.array([[0, 1, 2, 3]]),
         },
         cell_tags={

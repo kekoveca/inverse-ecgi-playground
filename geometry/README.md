@@ -71,7 +71,7 @@ print(report.summary)
 
 ## Gmsh / meshio import with physical tags
 
-Модуль содержит контейнер `TaggedMesh` / `Mesh` для сеток, загруженных через `meshio` из Gmsh-файлов с physical groups. Подробная документация: [docs/tagged_mesh.md](docs/tagged_mesh.md).
+`MeshData` поддерживает сетки, загруженные через `meshio` из Gmsh-файлов с physical groups. Один и тот же объект может хранить несколько cell blocks, например `tetra` для объема и `triangle` для поверхности. Подробная документация: [docs/tagged_mesh.md](docs/tagged_mesh.md).
 
 Внутренняя конвенция проекта для `field_data`:
 
@@ -83,7 +83,7 @@ field_data: dict[str, tuple[int, int]]
 Например, для 3D-объема `domain` с tag `1`:
 
 ```python
-tagged.field_data["domain"] == (3, 1)
+mesh.field_data["domain"] == (3, 1)
 ```
 
 `meshio` обычно возвращает пары в порядке `(tag, dim)`, поэтому `read_gmsh_meshio()` при чтении `.msh` переворачивает их во внутренний формат `(dim, tag)`.
@@ -93,18 +93,18 @@ tagged.field_data["domain"] == (3, 1)
 ```python
 from geometry import read_gmsh_meshio
 
-tagged = read_gmsh_meshio("examples/torso.msh", dim=3)
+mesh = read_gmsh_meshio("torso.msh", dim=3)
 
-print(tagged.cells.keys())
-print(tagged.field_data)
-print(tagged.physical_dimension("domain"))
-print(tagged.physical_tag("domain"))
+print(mesh.cell_blocks.keys())
+print(mesh.field_data)
+print(mesh.physical_dimension("domain"))
+print(mesh.physical_tag("domain"))
 
-volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
-surface_mesh = tagged.to_mesh_data("triangle", physical_name="boundary")
+volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
+surface_mesh = mesh.to_mesh_data("triangle", physical_name="boundary")
 ```
 
-Используйте `TaggedMesh` / `Mesh`, когда нужны Gmsh physical groups, boundary tags и несколько cell blocks в одном объекте. Используйте `MeshData`, когда downstream-компоненту нужен один конкретный блок: например 3D tetrahedral volume или surface mesh из triangles.
+Используйте multi-block `MeshData`, когда нужны Gmsh physical groups, boundary tags и несколько cell blocks в одном объекте. Используйте `to_mesh_data(...)`, когда downstream-компоненту нужен один конкретный блок: например 3D tetrahedral volume или surface mesh из triangles. `TaggedMesh` и `Mesh` сохранены как совместимые старые имена поверх `MeshData`.
 
 
 ## Source region from bounding box

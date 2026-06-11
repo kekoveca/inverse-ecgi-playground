@@ -1,13 +1,14 @@
-# TaggedMesh: Gmsh/meshio сетки с physical groups
+# MeshData: Gmsh/meshio сетки с physical groups
 
-`geometry.tagged_mesh` хранит сетки, прочитанные из Gmsh через `meshio`, вместе с physical groups. Этот слой нужен, когда в одном файле лежат разные блоки ячеек: например `tetra` для объема торса и `triangle` для поверхности.
+`geometry.mesh_model.MeshData` хранит сетки, прочитанные из Gmsh через `meshio`, вместе с physical groups. Этот слой нужен, когда в одном файле лежат разные блоки ячеек: например `tetra` для объема торса и `triangle` для поверхности.
 
-Для downstream-кода, которому нужен один конкретный блок, `TaggedMesh` преобразуется в обычный `MeshData`.
+Для downstream-кода, которому нужен один конкретный блок, multi-block `MeshData` преобразуется в single-block `MeshData` через `to_mesh_data(...)`.
 
 ## Основные сущности
 
-- `TaggedMesh`: контейнер для координат, cell blocks, physical tags и metadata.
-- `Mesh`: обратносовместимый alias для `TaggedMesh`.
+- `MeshData`: единый контейнер для координат, cell blocks, physical tags и metadata.
+- `TaggedMesh`: обратносовместимая обертка над `MeshData` для старого конструктора.
+- `Mesh`: alias для `MeshData`.
 - `read_gmsh_meshio(path, dim)`: чтение `.msh` через `meshio`.
 - `_field_data_to_tuples(field_data)`: внутренняя конвертация `meshio.field_data`.
 
@@ -48,7 +49,7 @@ internal: (dim, tag)
 Например:
 
 ```python
-from geometry.tagged_mesh import _field_data_to_tuples
+from geometry.mesh_model import _field_data_to_tuples
 import numpy as np
 
 converted = _field_data_to_tuples(
@@ -62,17 +63,16 @@ assert converted["domain"] == (3, 1)
 assert converted["boundary"] == (2, 2)
 ```
 
-Если вы создаете `TaggedMesh` вручную, передавайте уже внутренний порядок `(dim, tag)`.
+Если вы создаете `MeshData` вручную, передавайте уже внутренний порядок `(dim, tag)`.
 
-## Структура `TaggedMesh`
+## Структура multi-block `MeshData`
 
 ```python
-from geometry import Mesh
+from geometry import MeshData
 import numpy as np
 
-tagged = Mesh(
-    dim=3,
-    coords=np.array(
+mesh = MeshData.from_cell_blocks(
+    points=np.array(
         [
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -80,7 +80,7 @@ tagged = Mesh(
             [0.0, 0.0, 1.0],
         ]
     ),
-    cells={
+    cell_blocks={
         "tetra": np.array([[0, 1, 2, 3]]),
     },
     cell_tags={
@@ -95,19 +95,26 @@ tagged = Mesh(
 Поля:
 
 - `dim`: рабочая размерность координат, обычно `2` или `3`.
-- `coords`: массив узлов формы `(n_nodes, dim)`.
-- `cells`: словарь `cell_type -> connectivity`, например `"tetra"`, `"triangle"`, `"line"`.
+- `points`: массив узлов формы `(n_nodes, dim)`.
+- `cells`: connectivity активного блока.
+- `cell_type`: тип активного блока.
+- `cell_blocks`: словарь `cell_type -> connectivity`, например `"tetra"`, `"triangle"`, `"line"`.
 - `cell_tags`: словарь `cell_type -> physical tag per cell`.
 - `field_data`: словарь `physical_name -> (dim, tag)`.
 - `metadata`: произвольные метаданные.
 
 Если для блока ячеек нет `cell_tags`, контейнер создаст нулевые tags для всех ячеек этого блока.
 
+Для совместимости доступны aliases:
+
+- `mesh.coords == mesh.points`;
+- `mesh.dim == mesh.geometric_dim`.
+
 ## Physical group API
 
 ```python
-assert tagged.physical_dimension("domain") == 3
-assert tagged.physical_tag("domain") == 1
+assert mesh.physical_dimension("domain") == 3
+assert mesh.physical_tag("domain") == 1
 ```
 
 `physical_dimension(name)` возвращает первый элемент `field_data[name]`.
@@ -121,7 +128,7 @@ assert tagged.physical_tag("domain") == 1
 `cell_block(cell_type, physical_name=None)` возвращает connectivity-массив для указанного типа ячеек. Если передан `physical_name`, ячейки фильтруются по physical tag:
 
 ```python
-domain_cells = tagged.cell_block("tetra", physical_name="domain")
+domain_cells = mesh.cell_block("tetra", physical_name="domain")
 ```
 
 Важно: фильтрация идет именно по tag, а не по dimension.
@@ -129,9 +136,9 @@ domain_cells = tagged.cell_block("tetra", physical_name="domain")
 Эквивалентная логика:
 
 ```python
-tag = tagged.physical_tag("domain")
-tags = tagged.cell_tags["tetra"]
-domain_cells = tagged.cells["tetra"][tags == tag]
+tag = mesh.physical_tag("domain")
+tags = mesh.cell_tags["tetra"]
+domain_cells = mesh.cell_blocks["tetra"][tags == tag]
 ```
 
 ## Конвертация в `MeshData`
@@ -139,7 +146,7 @@ domain_cells = tagged.cells["tetra"][tags == tag]
 `to_mesh_data()` превращает один cell block в легкий контейнер `MeshData`.
 
 ```python
-domain = tagged.to_mesh_data(
+domain = mesh.to_mesh_data(
     cell_type="tetra",
     physical_name="domain",
 )
@@ -154,7 +161,7 @@ assert domain.metadata["physical_tag"] == 1
 
 Metadata результата содержит:
 
-- `source`: `"TaggedMesh"`;
+- `source`: `"MeshData"`;
 - `cell_type`: выбранный тип ячеек;
 - `physical_name`: имя группы или `None`;
 - `field_data`: внутренний словарь physical groups;
@@ -166,37 +173,37 @@ Metadata результата содержит:
 ```python
 from geometry import read_gmsh_meshio
 
-tagged = read_gmsh_meshio("examples/torso.msh", dim=3)
+mesh = read_gmsh_meshio("torso.msh", dim=3)
 
-print(tagged.field_data)
-print(tagged.physical_dimension("domain"))
-print(tagged.physical_tag("domain"))
+print(mesh.field_data)
+print(mesh.physical_dimension("domain"))
+print(mesh.physical_tag("domain"))
 ```
 
 Для текущей тестовой сетки ожидается:
 
 ```python
-tagged.field_data["domain"] == (3, 1)
-tagged.field_data["boundary"] == (2, 2)
-tagged.physical_dimension("domain") == 3
-tagged.physical_tag("domain") == 1
+mesh.field_data["domain"] == (3, 1)
+mesh.field_data["boundary"] == (2, 2)
+mesh.physical_dimension("domain") == 3
+mesh.physical_tag("domain") == 1
 ```
 
 Получение объема и поверхности:
 
 ```python
-volume_mesh = tagged.to_mesh_data(
+volume_mesh = mesh.to_mesh_data(
     cell_type="tetra",
     physical_name="domain",
 )
 
-surface_mesh = tagged.to_mesh_data(
+surface_mesh = mesh.to_mesh_data(
     cell_type="triangle",
     physical_name="boundary",
 )
 ```
 
-Для текущей `examples/torso.msh`:
+Для текущей `torso.msh`:
 
 ```python
 volume_mesh.num_cells == 47158
@@ -216,10 +223,10 @@ from geometry import (
     validate_torso_geometry,
 )
 
-tagged = read_gmsh_meshio("examples/torso.msh", dim=3)
+mesh = read_gmsh_meshio("torso.msh", dim=3)
 
-volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
-surface_mesh = tagged.to_mesh_data("triangle", physical_name="boundary")
+volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
+surface_mesh = mesh.to_mesh_data("triangle", physical_name="boundary")
 
 electrodes = ElectrodeSet(
     positions=np.array(
@@ -258,11 +265,11 @@ print(report.summary)
 - что `field_data["domain"]` хранится как `(dim, tag)`, например `(3, 1)`;
 - что `cell_tags["tetra"]` содержит physical tag, например `1`;
 - что данные пришли через `read_gmsh_meshio()`, если исходный источник это `meshio`;
-- что вы не передали вручную meshio-порядок `(tag, dim)` в `TaggedMesh`.
+- что вы не передали вручную meshio-порядок `(tag, dim)` в `MeshData`.
 
 Если нужна вся сетка без фильтрации physical group:
 
 ```python
-all_tetra = tagged.cell_block("tetra")
-all_volume = tagged.to_mesh_data("tetra")
+all_tetra = mesh.cell_block("tetra")
+all_volume = mesh.to_mesh_data("tetra")
 ```
