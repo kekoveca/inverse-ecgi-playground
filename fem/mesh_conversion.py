@@ -49,4 +49,4 @@ def create_dolfinx_mesh(mesh: MeshData, comm: Any | None = None):
 
     cells = np.asarray(mesh.cells, dtype=np.int64)
     points = np.asarray(mesh.points, dtype=np.float64)
-    return dmesh.create_mesh(comm, cells, points, domain)
+    return dmesh.create_mesh(comm, cells, domain, points)

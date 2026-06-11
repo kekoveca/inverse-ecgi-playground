@@ -228,6 +228,28 @@ FEniCSx импортируется лениво через `require_fenicsx()`.
 
 Если стек не установлен, модуль выбрасывает понятный `ImportError` с сообщением о необходимости FEniCSx-окружения.
 
+## Тесты с настоящим DOLFINx
+
+Обычные unit-тесты используют fake-объекты и не требуют FEniCSx:
+
+```bash
+pytest test_fem_units.py
+```
+
+Реальные integration-тесты лежат в `test_fem_dolfinx_integration.py`. Они создают настоящий DOLFINx mesh, собирают матрицу `K`, проверяют nullspace и решают две системы с разными RHS. По умолчанию они пропускаются, чтобы обычный `pytest` не падал в окружениях без рабочего MPI.
+
+Запуск в WSL:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest test_fem_dolfinx_integration.py
+```
+
+Полный прогон вместе с integration-тестами:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest
+```
+
 ## Что не входит в `fem`
 
 `fem` не должен знать:

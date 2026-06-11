@@ -116,8 +116,8 @@ def test_create_dolfinx_mesh_uses_fenicsx_factories_and_default_comm(monkeypatch
 
     class FakeDmesh:
         @staticmethod
-        def create_mesh(comm, cells, points, domain):
-            calls["create_mesh"] = (comm, cells.copy(), points.copy(), domain)
+        def create_mesh(comm, cells, domain, points):
+            calls["create_mesh"] = (comm, cells.copy(), domain, points.copy())
             return "dolfinx-mesh"
 
     fake_fx = {
@@ -133,7 +133,7 @@ def test_create_dolfinx_mesh_uses_fenicsx_factories_and_default_comm(monkeypatch
 
     assert created == "dolfinx-mesh"
     assert calls["element"] == ("Lagrange", "tetrahedron", 1, (3,))
-    comm, cells, points, domain = calls["create_mesh"]
+    comm, cells, domain, points = calls["create_mesh"]
     assert comm == "WORLD"
     assert np.array_equal(cells, mesh.cells)
     assert np.allclose(points, mesh.points)
