@@ -5,6 +5,7 @@ import pytest
 
 from geometry import MeshData, read_gmsh_meshio
 from fem import FEMProblem, create_dolfinx_mesh
+from sources import PointDipole, assemble_point_dipole_rhs_petsc
 
 
 os.environ.setdefault("TMPDIR", "/tmp")
@@ -73,6 +74,22 @@ def test_fem_problem_assembles_stiffness_matrix_and_solves_repeated_rhs():
         assert problem.diagnostics.converged_reason > 0
         assert problem.diagnostics.residual_norm is not None
         assert problem.diagnostics.residual_norm < 1e-8
+    finally:
+        problem.destroy()
+
+
+def test_point_dipole_petsc_rhs_solves_with_real_fem_problem():
+    problem = FEMProblem(single_tetra_mesh(), pc_type="none", test_nullspace=True)
+    source = PointDipole(position=[0.25, 0.25, 0.25], moment=[1.0, 2.0, 3.0])
+
+    try:
+        rhs = assemble_point_dipole_rhs_petsc(problem, source)
+        u = problem.solve(rhs)
+
+        assert abs(float(rhs.x.array.sum())) < 1e-12
+        assert abs(float(u.x.array.mean())) < 1e-12
+        assert problem.diagnostics.converged_reason is not None
+        assert problem.diagnostics.converged_reason > 0
     finally:
         problem.destroy()
 

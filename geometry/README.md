@@ -145,3 +145,34 @@ from geometry import plot_mesh, plot_source_region
 plot_mesh(volume_mesh)
 plot_source_region(source_region)
 ```
+
+## Sources
+
+Модуль `sources` собирает правые части для точечных дипольных источников на P1 тетраэдральной сетке. Основная реализация не зависит от DOLFINx и использует только `numpy` и `geometry.MeshData`.
+
+Минимальный пример:
+
+```python
+import numpy as np
+
+from geometry import MeshData
+from sources import PointDipole, assemble_point_dipole_rhs_numpy
+
+mesh = MeshData(
+    points=np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    ),
+    cells=np.array([[0, 1, 2, 3]], dtype=np.int64),
+    cell_type="tetra",
+)
+
+source = PointDipole(position=[0.25, 0.25, 0.25], moment=[1.0, 0.0, 0.0])
+rhs = assemble_point_dipole_rhs_numpy(mesh, source)
+```
+
+Знак RHS сейчас выбран как `gradients_p1_tetra(vertices) @ moment`. Он будет окончательно проверяться позже через FEM-Green consistency.
