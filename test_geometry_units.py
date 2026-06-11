@@ -6,9 +6,16 @@ import pytest
 
 import geometry
 from geometry.electrodes import ElectrodeSet, electrode_placement_report
-from geometry.mesh_model import MeshData, load_npz_mesh, quality_report, save_npz_mesh, tetra_volumes
+from geometry.mesh_model import (
+    MeshData,
+    _field_data_to_tuples,
+    load_npz_mesh,
+    quality_report,
+    read_gmsh_meshio,
+    save_npz_mesh,
+    tetra_volumes,
+)
 from geometry.source_region import SourceRegion
-from geometry.tagged_mesh import Mesh, TaggedMesh, _field_data_to_tuples, read_gmsh_meshio
 from geometry.torso_geometry import TorsoGeometry
 from geometry.transforms import (
     AffineTransform,
@@ -57,8 +64,8 @@ def simple_geometry():
 def test_public_geometry_exports_are_available():
     for name in geometry.__all__:
         assert hasattr(geometry, name), name
-    assert geometry.Mesh is geometry.MeshData
-    assert issubclass(geometry.TaggedMesh, geometry.MeshData)
+    assert not hasattr(geometry, "Mesh")
+    assert not hasattr(geometry, "Tagged" + "Mesh")
 
 
 def test_mesh_data_properties_centers_metadata_and_npz_roundtrip(tmp_path):
@@ -197,49 +204,51 @@ def test_source_region_rejects_invalid_ids_bounds_and_shapes():
         SourceRegion.from_bounding_box(mesh, [0.0, 0.0, 0.0], [1.0, 1.0, 1.0], mode="bad")
 
 
-def test_tagged_mesh_filters_physical_groups_and_converts_to_mesh_data():
-    tagged = TaggedMesh(
-        dim=2,
-        coords=np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
-        cells={
+def test_mesh_data_filters_physical_groups_and_converts_cell_blocks():
+    mesh_data = MeshData.from_cell_blocks(
+        points=np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]),
+        cell_blocks={
             "triangle": np.array([[0, 1, 2], [1, 3, 2]]),
             "line": np.array([[0, 1]]),
         },
-        cell_tags={"triangle": np.array([7, 8])},
-        field_data={"torso": (2, 7), "boundary": (1, 3)},
+        cell_tags={"triangle": np.array([10, 10])},
+        field_data={"torso": (2, 10), "boundary": (1, 3)},
         metadata={"origin": "gmsh"},
     )
 
-    assert isinstance(tagged, Mesh)
-    assert tagged.num_points == 4
-    assert tagged.field_data["torso"] == (2, 7)
-    assert tagged.physical_tag("torso") == 7
-    assert tagged.physical_dimension("boundary") == 1
-    assert np.array_equal(tagged.tags_for("line"), [0])
-    assert np.array_equal(tagged.cell_block("triangle", physical_name="torso"), [[0, 1, 2]])
+    assert mesh_data.num_points == 4
+    assert mesh_data.field_data["torso"] == (2, 10)
+    assert mesh_data.physical_tag("torso") == 10
+    assert mesh_data.physical_dimension("boundary") == 1
+    assert np.array_equal(mesh_data.tags_for("line"), [0])
+    assert np.array_equal(mesh_data.cell_block("triangle", physical_name="torso"), [[0, 1, 2], [1, 3, 2]])
 
-    mesh = tagged.to_mesh_data("triangle", name="domain", physical_name="torso")
+    mesh = mesh_data.to_mesh_data("triangle", name="domain", physical_name="torso")
     assert mesh.name == "domain"
     assert mesh.metadata["source"] == "MeshData"
     assert mesh.metadata["origin"] == "gmsh"
     assert mesh.metadata["physical_dimension"] == 2
-    assert mesh.metadata["physical_tag"] == 7
-    assert np.array_equal(mesh.cells, [[0, 1, 2]])
+    assert mesh.metadata["physical_tag"] == 10
+    assert np.array_equal(mesh.cells, [[0, 1, 2], [1, 3, 2]])
 
 
-def test_tagged_mesh_rejects_invalid_data_and_unknown_groups():
-    with pytest.raises(ValueError, match="dim must be 2 or 3"):
-        TaggedMesh(4, np.zeros((1, 4)), {}, {}, {})
+def test_mesh_data_rejects_invalid_tagged_data_and_unknown_groups():
+    with pytest.raises(ValueError, match="points must be 2D or 3D"):
+        MeshData.from_cell_blocks(points=np.zeros((1, 4)), cell_blocks={"line": np.empty((0, 2), dtype=np.int64)})
     with pytest.raises(ValueError, match="must have shape"):
-        TaggedMesh(2, np.zeros((2, 2)), {"line": np.array([[0, 1]])}, {"line": np.array([1, 2])}, {})
+        MeshData.from_cell_blocks(
+            points=np.zeros((2, 2)),
+            cell_blocks={"line": np.array([[0, 1]])},
+            cell_tags={"line": np.array([1, 2])},
+        )
     with pytest.raises(ValueError, match="at least tag and dimension"):
         _field_data_to_tuples({"bad": [1]})
 
-    tagged = TaggedMesh(2, np.zeros((2, 2)), {"line": np.array([[0, 1]])}, {}, {})
+    mesh_data = MeshData.from_cell_blocks(points=np.zeros((2, 2)), cell_blocks={"line": np.array([[0, 1]])})
     with pytest.raises(KeyError, match="Physical group"):
-        tagged.physical_tag("missing")
+        mesh_data.physical_tag("missing")
     with pytest.raises(KeyError, match="Cell type"):
-        tagged.cell_block("triangle")
+        mesh_data.cell_block("triangle")
 
 
 def test_read_gmsh_meshio_maps_meshio_data(monkeypatch, tmp_path):
@@ -252,15 +261,15 @@ def test_read_gmsh_meshio_maps_meshio_data(monkeypatch, tmp_path):
     fake_meshio = types.SimpleNamespace(read=lambda path: fake_mesh)
     monkeypatch.setitem(sys.modules, "meshio", fake_meshio)
 
-    tagged = read_gmsh_meshio(tmp_path / "demo.msh", dim=2)
+    mesh_data = read_gmsh_meshio(tmp_path / "demo.msh", dim=2)
 
-    assert tagged.dim == 2
-    assert np.allclose(tagged.coords, [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
-    assert np.array_equal(tagged.cell_tags["triangle"], [7])
-    assert tagged.field_data["torso"] == (2, 7)
-    assert tagged.physical_tag("torso") == 7
-    assert tagged.physical_dimension("torso") == 2
-    assert tagged.metadata["reader"] == "meshio"
+    assert mesh_data.dim == 2
+    assert np.allclose(mesh_data.coords, [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    assert np.array_equal(mesh_data.cell_tags["triangle"], [7])
+    assert mesh_data.field_data["torso"] == (2, 7)
+    assert mesh_data.physical_tag("torso") == 7
+    assert mesh_data.physical_dimension("torso") == 2
+    assert mesh_data.metadata["reader"] == "meshio"
 
 
 def test_meshio_field_data_is_converted_to_internal_dimension_tag_order():
@@ -275,8 +284,8 @@ def test_meshio_field_data_is_converted_to_internal_dimension_tag_order():
     assert converted["boundary"] == (2, 2)
 
 
-def test_tagged_mesh_uses_internal_dimension_tag_order_for_manual_data():
-    tagged = MeshData.from_cell_blocks(
+def test_mesh_data_uses_internal_dimension_tag_order_for_manual_data():
+    mesh_data = MeshData.from_cell_blocks(
         points=np.array(
             [
                 [0.0, 0.0, 0.0],
@@ -296,11 +305,11 @@ def test_tagged_mesh_uses_internal_dimension_tag_order_for_manual_data():
         },
     )
 
-    assert tagged.field_data["domain"] == (3, 1)
-    assert tagged.physical_dimension("domain") == 3
-    assert tagged.physical_tag("domain") == 1
+    assert mesh_data.field_data["domain"] == (3, 1)
+    assert mesh_data.physical_dimension("domain") == 3
+    assert mesh_data.physical_tag("domain") == 1
 
-    domain = tagged.to_mesh_data(
+    domain = mesh_data.to_mesh_data(
         cell_type="tetra",
         physical_name="domain",
     )
@@ -310,10 +319,9 @@ def test_tagged_mesh_uses_internal_dimension_tag_order_for_manual_data():
     assert domain.metadata["physical_tag"] == 1
 
 
-def test_tagged_mesh_filters_cells_by_physical_tag_not_dimension():
-    tagged = TaggedMesh(
-        dim=3,
-        coords=np.array(
+def test_mesh_data_filters_cells_by_physical_tag_not_dimension():
+    mesh_data = MeshData.from_cell_blocks(
+        points=np.array(
             [
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -322,7 +330,7 @@ def test_tagged_mesh_filters_cells_by_physical_tag_not_dimension():
                 [1.0, 1.0, 1.0],
             ]
         ),
-        cells={
+        cell_blocks={
             "tetra": np.array([[0, 1, 2, 3], [1, 2, 3, 4]]),
         },
         cell_tags={
@@ -331,8 +339,8 @@ def test_tagged_mesh_filters_cells_by_physical_tag_not_dimension():
         field_data={"domain": (3, 1)},
     )
 
-    assert tagged.cell_block("tetra", physical_name="domain").shape[0] == 2
-    assert tagged.to_mesh_data("tetra", physical_name="domain").num_cells == 2
+    assert mesh_data.cell_block("tetra", physical_name="domain").shape[0] == 2
+    assert mesh_data.to_mesh_data("tetra", physical_name="domain").num_cells == 2
 
 
 def test_torso_geometry_summary_and_quality_report():

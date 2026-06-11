@@ -71,7 +71,7 @@ print(report.summary)
 
 ## Gmsh / meshio import with physical tags
 
-`MeshData` поддерживает сетки, загруженные через `meshio` из Gmsh-файлов с physical groups. Один и тот же объект может хранить несколько cell blocks, например `tetra` для объема и `triangle` для поверхности. Подробная документация: [docs/tagged_mesh.md](docs/tagged_mesh.md).
+`MeshData` поддерживает сетки, загруженные через `meshio` из Gmsh-файлов с physical groups. Один и тот же объект может хранить несколько cell blocks, например `tetra` для объема и `triangle` для поверхности. Подробная документация: [../docs/mesh_data.md](../docs/mesh_data.md).
 
 Внутренняя конвенция проекта для `field_data`:
 
@@ -104,7 +104,7 @@ volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
 surface_mesh = mesh.to_mesh_data("triangle", physical_name="boundary")
 ```
 
-Используйте multi-block `MeshData`, когда нужны Gmsh physical groups, boundary tags и несколько cell blocks в одном объекте. Используйте `to_mesh_data(...)`, когда downstream-компоненту нужен один конкретный блок: например 3D tetrahedral volume или surface mesh из triangles. `TaggedMesh` и `Mesh` сохранены как совместимые старые имена поверх `MeshData`.
+Используйте multi-block `MeshData`, когда нужны Gmsh physical groups, boundary tags и несколько cell blocks в одном объекте. Используйте `to_mesh_data(...)`, когда downstream-компоненту нужен один конкретный блок: например 3D tetrahedral volume или surface mesh из triangles.
 
 
 ## Source region from bounding box

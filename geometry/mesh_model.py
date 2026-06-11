@@ -149,7 +149,7 @@ class MeshData:
 
     @property
     def coords(self) -> np.ndarray:
-        """Backward-compatible coordinate alias used by older tagged mesh code."""
+        """Coordinate alias for meshio-style workflows."""
         return self.points
 
     @property

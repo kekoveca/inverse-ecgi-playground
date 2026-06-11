@@ -9,16 +9,16 @@ from geometry import (
     plot_torso_geometry,
 )
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
+mesh = read_gmsh_meshio("torso.msh", dim=3)
 
-volume_mesh = tagged.to_mesh_data(
+volume_mesh = mesh.to_mesh_data(
     cell_type="tetra",
     physical_name="domain",
 )
 
 print(volume_mesh.bounding_box())
 
-surface_mesh = tagged.to_mesh_data(
+surface_mesh = mesh.to_mesh_data(
     cell_type="triangle",
     physical_name="boundary",
 )
@@ -26,15 +26,15 @@ surface_mesh = tagged.to_mesh_data(
 print(volume_mesh.num_cells)  # должно быть 47158
 print(surface_mesh.num_cells)  # должно быть 7760
 
-print("physical tag domain:", tagged.physical_tag("domain"))
+print("physical tag domain:", mesh.physical_tag("domain"))
 
-tetra_all = tagged.cell_block("tetra")
-tetra_domain = tagged.cell_block("tetra", physical_name="domain")
+tetra_all = mesh.cell_block("tetra")
+tetra_domain = mesh.cell_block("tetra", physical_name="domain")
 
 print("tetra_all:", tetra_all.shape)
 print("tetra_domain:", tetra_domain.shape)
 
-print("unique tetra tags:", np.unique(tagged.cell_tags["tetra"]))
+print("unique tetra tags:", np.unique(mesh.cell_tags["tetra"]))
 
 electrodes = ElectrodeSet(
     positions=np.array(

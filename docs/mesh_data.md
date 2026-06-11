@@ -7,8 +7,6 @@
 ## Основные сущности
 
 - `MeshData`: единый контейнер для координат, cell blocks, physical tags и metadata.
-- `TaggedMesh`: обратносовместимая обертка над `MeshData` для старого конструктора.
-- `Mesh`: alias для `MeshData`.
 - `read_gmsh_meshio(path, dim)`: чтение `.msh` через `meshio`.
 - `_field_data_to_tuples(field_data)`: внутренняя конвертация `meshio.field_data`.
 
