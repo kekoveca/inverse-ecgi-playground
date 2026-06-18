@@ -18,6 +18,8 @@ geometry -> FEM Neumann solver -> point dipole RHS -> electrode measurements -> 
 - [`measurements`](docs/measurements.md) — интерполяция потенциала на электроды и reference-системы.
 - [`forward`](docs/forward.md) — полный pipeline `source -> rhs -> potential -> measurements -> result` и экспорт в ParaView.
 
+Вспомогательный модуль [`verification`](verification/README.md) содержит unit-cube mesh refinement, manufactured solutions и convergence reports.
+
 ## Important conventions
 
 - `MeshData` хранит node/cell ids в собственном ordering. Они не обязаны совпадать с DOLFINx DOF/cell ids.
@@ -96,6 +98,15 @@ Numpy/scipy-тесты работают без DOLFINx. Реальные DOLFINx
 TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest
 ```
 
+Численные проверки forward/FEM:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
+  pytest test_forward_convergence.py test_poisson_manufactured_solution.py
+```
+
+Точечный диполь сингулярен, поэтому для него не требуется классическая глобальная L2-сходимость potential. Forward test проверяет стабилизацию average-referenced measurements вдали от источника. L2 convergence FEM solver отдельно проверяется на smooth manufactured cosine solution.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -107,3 +118,4 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest
 - [Debugging](docs/debugging.md)
 - [Examples](docs/examples.md)
 - [MeshData details](docs/mesh_data.md)
+- [Verification utilities](verification/README.md)

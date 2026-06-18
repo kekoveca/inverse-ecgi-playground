@@ -147,6 +147,26 @@ def test_average_referenced_constant_function_is_zero():
     assert np.allclose(measured, [0.0, 0.0, 0.0])
 
 
+def test_average_reference_is_invariant_to_constant_nodal_shift():
+    mesh = single_tetra_mesh()
+    electrodes = ElectrodeSet(
+        positions=np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.25, 0.25, 0.25],
+                [0.0, 1.0, 0.0],
+            ]
+        )
+    )
+    op = build_measurement_operator(mesh, electrodes, reference="average", sparse=False)
+    nodal_values = np.array([0.0, 1.0, 2.0, 3.0])
+
+    measured = op.evaluate(nodal_values)
+    shifted = op.evaluate(nodal_values + 17.5)
+
+    assert np.allclose(shifted, measured)
+
+
 def test_sparse_and_dense_measurement_matrices_are_consistent():
     pytest.importorskip("scipy")
     mesh = single_tetra_mesh()

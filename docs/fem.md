@@ -106,3 +106,21 @@ solver.destroy()
 ```
 
 В MPI-программе создание, solve и destroy должны выполняться согласованно всеми ranks communicator.
+
+## Manufactured solution convergence
+
+Гладкая проверка solver использует unit cube и
+
+```text
+u_exact = cos(2 pi x) cos(2 pi y) cos(2 pi z)
+-Delta u_exact = 12 pi^2 u_exact
+```
+
+Нормальная производная равна нулю на всех гранях unit cube, поэтому функция совместима с homogeneous Neumann boundary condition.
+
+`test_poisson_manufactured_solution.py` решает задачу на refinement levels `n=4, 8, 16`, выравнивает constant gauge и проверяет:
+
+- монотонное уменьшение L2 error;
+- минимальный наблюдаемый rate больше `1.0`.
+
+Для P1 на smooth solution ожидается близкий к quadratic L2 rate, но test использует мягкий threshold, чтобы не зависеть от coarse-grid и solver details.

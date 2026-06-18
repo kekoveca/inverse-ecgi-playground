@@ -91,3 +91,7 @@ field_data: dict[str, tuple[int, int]]
 Stiffness matrix чистой задачи Неймана имеет константное ядро. Потенциал определён с точностью до добавления константы. `fem` прикрепляет PETSc `NullSpace`, проверяет/проецирует RHS и после решения фиксирует gauge вычитанием среднего.
 
 Average-reference измерений дополнительно инвариантен к константному сдвигу потенциала.
+
+## Verification layer
+
+`verification` не участвует в production pipeline. Он предоставляет unit-cube meshes, analytic/manufactured functions и convergence reports для тестов FEM/forward. Это разделение позволяет проверять smooth FEM convergence независимо от сингулярного point-dipole solution.

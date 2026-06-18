@@ -119,3 +119,23 @@ print(solver.diagnostics.nullspace_test_passed)
 ```
 
 Положительный `converged_reason` и успешный nullspace test нужны до анализа физической формы поля.
+
+## If forward solution looks unstable
+
+Запустите проверки от дешёвых к дорогим:
+
+```bash
+pytest test_convergence_utils.py test_measurements_module.py
+
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
+  pytest test_forward_convergence.py test_poisson_manufactured_solution.py
+```
+
+Интерпретация:
+
+- manufactured L2 convergence не проходит — проблема в mesh/FEM assembly/nullspace/solver;
+- manufactured test проходит, но linearity или scaling не проходят — проверяйте RHS assembly и KSP tolerance;
+- linearity проходит, но refinement measurements нестабилен — проверяйте source location относительно mesh skeleton и observation ordering;
+- все verification tests проходят, но torso field выглядит странно — проверяйте physical geometry, conductivity model, source marker и electrodes.
+
+Не используйте source point, лежащий точно на refinement grid vertex, для cell-local point-dipole convergence: такая точка принадлежит нескольким тетраэдрам.

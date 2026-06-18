@@ -114,3 +114,26 @@ try:
 finally:
     solver.destroy()
 ```
+
+## Forward convergence checks
+
+Point dipole solution сингулярен в source position, поэтому global potential не обязан демонстрировать стандартную smooth P1 L2 convergence.
+
+`test_forward_convergence.py` проверяет:
+
+- RHS compatibility и localization на cell dofs;
+- finite potential/measurements;
+- average-reference zero sum;
+- deterministic repeated solve;
+- linearity по dipole moment;
+- scaling по амплитуде момента;
+- уменьшение differences между fixed remote observations при refinement `n=4, 8, 16`.
+
+Для refinement source выбирается рядом с центром, но не на mesh face/edge/vertex. Диполь ровно в grid vertex принадлежит нескольким cells, и выбор одного local P1 gradient не образует однозначную refinement sequence.
+
+Запуск:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
+  pytest test_forward_convergence.py
+```
