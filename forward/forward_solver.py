@@ -5,6 +5,7 @@ import numpy as np
 from geometry import ElectrodeSet
 from measurements import MeasurementOperator, build_measurement_operator
 from sources import PointDipole, assemble_point_dipole_rhs_petsc
+from time import perf_counter
 
 from .result import ForwardResult
 
@@ -67,6 +68,8 @@ class ForwardSolver:
         return self.poisson_solver.solve(rhs)
 
     def solve(self, source: PointDipole) -> ForwardResult:
+        t_start = perf_counter()
+        
         potential = self.solve_potential(source)
         nodal_values = extract_nodal_values(potential)
 
@@ -77,9 +80,11 @@ class ForwardSolver:
             raw_measurements = self.measurement_operator.evaluate_raw(nodal_values)
             measurements = self.measurement_operator.evaluate(nodal_values)
 
+        t = perf_counter() - t_start
         metadata = {
             "solver": self.poisson_solver.__class__.__name__,
             "has_measurement_operator": self.measurement_operator is not None,
+            "time": t,
         }
         return ForwardResult(
             source=source,
