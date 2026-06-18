@@ -1,5 +1,7 @@
 # forward
 
+Полная документация: [../docs/forward.md](../docs/forward.md).
+
 `forward` собирает прямой pipeline для точечного диполя:
 
 ```text

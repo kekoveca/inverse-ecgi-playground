@@ -84,7 +84,10 @@ def export_forward_result_to_xdmf(
     name: str = "potential",
     time: float = 0.0,
 ) -> Path:
-    """Export ``result.potential`` to XDMF for ParaView."""
+    """Write result potential plus mesh to XDMF/HDF5 and return the XDMF path.
+
+    Open the ``.xdmf`` file in ParaView and keep its companion ``.h5`` nearby.
+    """
     return export_potential_to_xdmf(result.potential, path, name=name, time=time)
 
 
@@ -95,5 +98,8 @@ def export_forward_result_to_vtx(
     time: float = 0.0,
     engine: str = "BP4",
 ) -> Path:
-    """Export ``result.potential`` to VTX/BP for ParaView."""
+    """Write result potential to VTX/BP and return the output path.
+
+    VTX/BP is the preferred ParaView fallback when XDMF is unstable.
+    """
     return export_potential_to_vtx(result.potential, path, name=name, time=time, engine=engine)

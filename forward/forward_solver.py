@@ -19,7 +19,11 @@ def extract_nodal_values(function_or_vec) -> np.ndarray:
 
 
 class ForwardSolver:
-    """Forward pipeline for one Neumann Poisson solver and point dipole sources."""
+    """Compose dipole RHS assembly, Neumann solve and electrode measurements.
+
+    The supplied Poisson solver owns the reusable stiffness matrix. If no
+    electrodes/operator are provided, the result contains empty measurements.
+    """
 
     def __init__(
         self,

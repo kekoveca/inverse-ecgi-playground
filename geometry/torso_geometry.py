@@ -10,7 +10,11 @@ from .source_region import SourceRegion
 
 @dataclass(frozen=True)
 class TorsoGeometry:
-    """Complete geometry object consumed by the forward/inverse module."""
+    """Validated geometry bundle for forward and future inverse workflows.
+
+    It groups the volume mesh, optional surface mesh, electrodes and source
+    region without introducing a dependency on FEniCSx.
+    """
 
     geometry_id: str
     volume_mesh: MeshData

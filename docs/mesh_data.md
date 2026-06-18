@@ -32,14 +32,14 @@ field_data["boundary"] == (2, 2)  # 2D surface group, tag=2
 
 `meshio` обычно возвращает `field_data` в другом порядке:
 
-```python
+```text
 # meshio convention
 name -> (tag, dim)
 ```
 
 Поэтому `read_gmsh_meshio()` вызывает `_field_data_to_tuples()` и переворачивает пары:
 
-```python
+```text
 meshio:   (tag, dim)
 internal: (dim, tag)
 ```

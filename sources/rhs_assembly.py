@@ -107,7 +107,11 @@ def _resolve_cell_id(mesh: MeshData, source: PointDipole, cell_id: int | None) -
 
 
 def assemble_point_dipole_rhs_numpy(mesh: MeshData, source: PointDipole, cell_id: int | None = None) -> np.ndarray:
-    """Assemble the nodal RHS for a P1 point dipole on a tetrahedral mesh."""
+    """Assemble a P1 dipole RHS in MeshData node ordering.
+
+    ``cell_id`` and ``source.cell_id`` are interpreted as MeshData cell ids.
+    The sign convention is ``local_rhs = grads @ source.moment``.
+    """
     _validate_tetra_mesh(mesh)
     resolved_cell_id = _resolve_cell_id(mesh, source, cell_id)
 
@@ -179,7 +183,12 @@ def locate_point_in_dolfinx_p1_tetra_mesh(
     candidate_cell_ids=None,
     tol: float = 1e-10,
 ) -> int:
-    """Return the local DOLFINx cell id containing ``point``."""
+    """Return the owned local DOLFINx P1 tetra cell containing ``point``.
+
+    Cell geometry is reconstructed from ``V.dofmap.cell_dofs`` and tabulated
+    dof coordinates, so the returned id is in DOLFINx rather than MeshData
+    ordering.
+    """
     point = np.asarray(point, dtype=float)
     if point.shape != (3,):
         raise ValueError(f"point must have shape (3,), got {point.shape}")
@@ -272,7 +281,12 @@ def inspect_point_dipole_location_petsc(
     tol: float = 1e-10,
     trust_source_cell_id: bool = False,
 ) -> dict:
-    """Return source location and RHS diagnostics in DOLFINx cell ordering."""
+    """Return location, barycentric and local RHS diagnostics.
+
+    By default the used cell is located from ``source.position`` in DOLFINx
+    ordering. Set ``trust_source_cell_id`` only after verifying both orderings.
+    No diagnostic output is printed automatically.
+    """
     mesh_data = _solver_mesh_data(solver)
     meshdata_located_cell_id = None
     try:
@@ -409,7 +423,11 @@ def compare_meshdata_and_dolfinx_cell_centers(solver, cell_ids=None, max_cells=N
 
 
 def create_cell_marker_function(solver, cell_id: int, value: float = 1.0, name: str = "source_marker"):
-    """Create a P1 marker with nonzero values on one local DOLFINx cell's dofs."""
+    """Return a P1 Function marking the dofs of one local DOLFINx cell.
+
+    The marker is intended for VTX/ParaView diagnostics; its nodal support may
+    extend visually to neighboring cells sharing the marked vertices.
+    """
     if not hasattr(solver, "zero_function"):
         raise TypeError("solver must provide zero_function() returning a dolfinx.fem.Function")
     cell_dofs, _ = _dolfinx_cell_geometry(solver, int(cell_id))
@@ -427,7 +445,12 @@ def assemble_point_dipole_rhs_petsc(
     cell_id: int | None = None,
     trust_source_cell_id: bool = False,
 ):
-    """Assemble a point dipole RHS in the FEniCSx dof ordering expected by ``solver.solve``."""
+    """Assemble a point dipole RHS directly in FEniCSx DOF ordering.
+
+    An explicit ``cell_id`` is a DOLFINx cell id. Otherwise the cell is located
+    from ``source.position``; ``source.cell_id`` is ignored unless
+    ``trust_source_cell_id=True``. The sign is ``grads @ source.moment``.
+    """
     _, cell_dofs, _, local_rhs = _point_dipole_local_rhs_in_dof_order(
         solver,
         source,

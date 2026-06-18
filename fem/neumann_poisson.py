@@ -338,4 +338,9 @@ class FEMProblem:
 
 
 class NeumannPoissonSolver(FEMProblem):
-    """Backward-compatible name for the Neumann Poisson ``FEMProblem``."""
+    """P1 DOLFINx solver for scalar Poisson problems with pure Neumann BCs.
+
+    The solver owns a reusable stiffness matrix/KSP and handles the constant
+    PETSc nullspace. MeshData node/cell ids are not DOLFINx dof/cell ids.
+    This class is the public, backward-compatible name for ``FEMProblem``.
+    """

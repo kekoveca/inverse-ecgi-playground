@@ -8,6 +8,12 @@ import numpy as np
 
 @dataclass(frozen=True)
 class PointDipole:
+    """Point dipole with 3D position, moment and optional MeshData cell id.
+
+    ``cell_id`` belongs to MeshData ordering. PETSc assembly does not trust it
+    as a DOLFINx cell id unless explicitly requested.
+    """
+
     position: np.ndarray
     moment: np.ndarray
     cell_id: int | None = None

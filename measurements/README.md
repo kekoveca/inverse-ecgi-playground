@@ -1,5 +1,7 @@
 # measurements
 
+Полная документация: [../docs/measurements.md](../docs/measurements.md).
+
 `measurements` преобразует FEM-потенциал в узлах P1 тетраэдральной сетки в вектор значений на электродах.
 
 Модуль не зависит от DOLFINx в основной реализации: он работает с `geometry.MeshData`, `geometry.ElectrodeSet`, `numpy` и, если доступен, `scipy.sparse`.

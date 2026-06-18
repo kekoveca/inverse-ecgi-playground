@@ -62,6 +62,12 @@ def _single_reference_matrix(n: int, reference_index: int, sparse: bool):
 
 
 def apply_reference(values, reference: str = "average", reference_index: int | None = None) -> np.ndarray:
+    """Apply ``none``, ``average`` or ``single`` electrode referencing.
+
+    ``single`` requires ``reference_index``. The returned array has the same
+    shape as ``values`` and does not mutate the input.
+    """
+
     values = np.asarray(values, dtype=float)
     if reference == "none":
         return values.copy()

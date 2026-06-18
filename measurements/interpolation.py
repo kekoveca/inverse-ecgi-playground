@@ -45,7 +45,11 @@ def build_point_interpolation_matrix(
     tol: float = 1e-10,
     sparse: bool = True,
 ):
-    """Build the P1 interpolation matrix from mesh nodes to point values."""
+    """Build the P1 interpolation matrix from MeshData nodes to points.
+
+    Each tetrahedral row has four barycentric weights. Input nodal vectors must
+    use MeshData node ordering; DOLFINx DOF ordering requires a verified map.
+    """
     points, cell_ids, barycentric = _as_location_data(mesh, points, cell_ids, barycentric, tol)
     n_points = points.shape[0]
     n_nodes = mesh.num_points

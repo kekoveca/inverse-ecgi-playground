@@ -10,6 +10,12 @@ from sources import PointDipole
 
 @dataclass(frozen=True)
 class ForwardResult:
+    """Result of one point-dipole forward solve.
+
+    It keeps the DOLFINx potential, a copied nodal array, raw/referenced
+    electrode values and lightweight metadata suitable for summaries.
+    """
+
     source: PointDipole
     potential: Any
     nodal_values: np.ndarray

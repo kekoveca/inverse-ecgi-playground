@@ -7,7 +7,12 @@ from pathlib import Path
 import numpy as np
 
 from fem import NeumannPoissonSolver
-from forward import ForwardSolver, export_dolfinx_function_to_vtx, export_forward_result_to_vtx, export_forward_result_to_xdmf
+from forward import (
+    ForwardSolver,
+    export_dolfinx_function_to_vtx,
+    export_forward_result_to_vtx,
+    export_forward_result_to_xdmf,
+)
 from geometry import read_gmsh_meshio
 from sources import (
     PointDipole,
@@ -105,7 +110,6 @@ def main() -> None:
 
         forward = ForwardSolver(poisson_solver=solver, reference="average")
         result = forward.solve(source)
-        xdmf_path = export_forward_result_to_xdmf(result, output_path)
         vtx_path = export_forward_result_to_vtx(result, vtx_output_path)
 
         summary = result.to_dict()
@@ -114,7 +118,6 @@ def main() -> None:
                 "mesh": str(mesh_path),
                 "physical_name": args.physical_name,
                 "num_cells": volume_mesh.num_cells,
-                "xdmf_path": str(xdmf_path),
                 "vtx_path": str(vtx_path),
                 "rhs_path": str(rhs_path),
                 "source_marker_path": str(marker_path),
@@ -139,13 +142,11 @@ def main() -> None:
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-        print(f"XDMF potential exported to: {xdmf_path}")
         print(f"VTX/BP potential exported to: {vtx_path}")
         print(f"VTX/BP RHS exported to: {rhs_path}")
         print(f"VTX/BP source marker exported to: {marker_path}")
         print(f"DOLFINx source cell_id: {location_info['used_cell_id']}")
         print(f"Source barycentric coordinates: {location_info['barycentric_in_dolfinx_cell']}")
-        print("Open the .xdmf file in ParaView. If ParaView crashes or shows an empty file, open the .bp output.")
         print(f"Summary written to: {summary_path}")
         print(f"PETSc converged_reason: {solver.diagnostics.converged_reason}")
         print(f"PETSc residual_norm: {solver.diagnostics.residual_norm}")

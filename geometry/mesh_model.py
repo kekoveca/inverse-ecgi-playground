@@ -20,6 +20,10 @@ class MeshData:
     mesh with several cell blocks. In the multi-block case ``cells`` and
     ``cell_type`` identify the active block, while ``cell_blocks`` stores all
     available blocks and ``cell_tags`` stores physical tags per block.
+
+    Node and cell ids belong to this container's ordering and must not be
+    treated as DOLFINx dof/cell ids. ``field_data`` uses ``name -> (dim, tag)``;
+    ``read_gmsh_meshio`` converts meshio's ``(tag, dim)`` values on input.
     """
 
     points: np.ndarray

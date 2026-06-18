@@ -14,6 +14,12 @@ from .reference import reference_matrix
 
 @dataclass(frozen=True)
 class MeasurementOperator:
+    """Linear electrode operator with interpolation ``P`` and reference ``R``.
+
+    ``raw_matrix`` returns ``P`` and ``matrix`` returns ``M = R @ P``. Nodal
+    values passed to evaluation methods are in MeshData node ordering.
+    """
+
     interpolation_matrix: Any
     reference_matrix: Any
     electrode_cell_ids: np.ndarray
@@ -69,7 +75,12 @@ def build_measurement_operator(
     sparse: bool = True,
     tol: float = 1e-10,
 ) -> MeasurementOperator:
-    """Build the electrode measurement operator ``M = R @ P``."""
+    """Locate electrodes and build ``P``, ``R`` and ``M = R @ P``.
+
+    The returned operator stores electrode MeshData cell ids and barycentric
+    coordinates for diagnostics. Sparse matrices are used when requested and
+    scipy is available.
+    """
     cell_ids, barycentric = locate_electrodes_in_mesh(mesh, electrodes, tol=tol)
     interpolation_matrix = build_point_interpolation_matrix(
         mesh,
