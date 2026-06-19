@@ -17,6 +17,7 @@ geometry -> FEM Neumann solver -> point dipole RHS -> electrode measurements -> 
 - [`sources`](docs/sources.md) — геометрия P1 tetra и RHS точечного диполя в numpy и FEniCSx DOF ordering.
 - [`measurements`](docs/measurements.md) — интерполяция потенциала на электроды и reference-системы.
 - [`forward`](docs/forward.md) — полный pipeline `source -> rhs -> potential -> measurements -> result` и экспорт в ParaView.
+- [`benchmark`](docs/benchmark.md) — forward-only sweeps по sources, electrode subsets и noise models с metrics и сохранением результатов.
 
 Вспомогательный модуль [`verification`](verification/README.md) содержит unit-cube mesh refinement, manufactured solutions и convergence reports.
 
@@ -119,3 +120,4 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
 - [Examples](docs/examples.md)
 - [MeshData details](docs/mesh_data.md)
 - [Verification utilities](verification/README.md)
+- [Benchmark](docs/benchmark.md)

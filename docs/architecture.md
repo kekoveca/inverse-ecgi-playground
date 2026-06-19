@@ -21,6 +21,15 @@ forward
 ParaView / diagnostics
 ```
 
+Experimental layer:
+
+```text
+geometry / fem / sources / measurements / forward
+                         |
+                         v
+                     benchmark
+```
+
 Это схема потока данных, а не жёсткая цепочка импортов. Например, `sources` содержит numpy-геометрию и адаптер к уже созданному FEM solver, а `measurements` может работать полностью без DOLFINx.
 
 ## Module responsibilities
@@ -53,6 +62,10 @@ g = R P u
 ```text
 source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> export
 ```
+
+### benchmark
+
+Комбинирует geometry, source sets, electrode subsets и noise models в forward-only experiments. Сохраняет clean/noisy measurements и scalar metrics, но не реализует Green/inverse algorithms.
 
 ## Important separation
 
