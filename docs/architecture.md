@@ -21,6 +21,21 @@ forward
 ParaView / diagnostics
 ```
 
+Reciprocal layer:
+
+```text
+measurements M
+  |
+  v
+green: K G_i = M_i^T
+  |
+  v
+dipole transfer matrix A
+  |
+  v
+inverse (future)
+```
+
 Experimental layer:
 
 ```text
@@ -63,9 +78,13 @@ g = R P u
 source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> export
 ```
 
+### green
+
+Преобразует строки `M = R @ P` в совместимые Neumann RHS, решает Green-задачи на той же stiffness matrix и собирает `A[j, i, :] = grad G_i(x_j)`. Transfer matrix предсказывает измерения как `g = A_j p`; знак контролируется FEM/Green consistency diagnostic.
+
 ### benchmark
 
-Комбинирует geometry, source sets, electrode subsets и noise models в forward-only experiments. Сохраняет clean/noisy measurements и scalar metrics, но не реализует Green/inverse algorithms.
+Комбинирует geometry, source sets, electrode subsets и noise models в forward-only experiments. Сохраняет clean/noisy measurements и scalar metrics; интеграция с Green и inverse остаётся отдельным следующим этапом.
 
 ## Important separation
 
@@ -73,6 +92,7 @@ source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> expor
 - `fem` владеет DOLFINx/PETSc solver objects и временем жизни матрицы/KSP.
 - `sources` и `measurements` имеют numpy-only core. Их FEM-адаптеры принимают уже созданные DOLFINx-объекты.
 - `forward` не пересобирает матрицу: он использует существующий `NeumannPoissonSolver`. Экспорт через `dolfinx.io` импортируется лениво.
+- `green` использует numpy/scipy measurement matrices, но создаёт Green RHS через проверенный node-to-dof mapping.
 
 ## Ordering boundaries
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from geometry import ElectrodeSet
+from fem import build_node_to_dof_map_p1
 from measurements import MeasurementOperator, build_measurement_operator
 from sources import PointDipole, assemble_point_dipole_rhs_petsc
 from time import perf_counter
@@ -43,6 +44,7 @@ class ForwardSolver:
         self.reference_index = reference_index
         self.measurement_sparse = bool(measurement_sparse)
         self.tol = float(tol)
+        self._node_to_dof_map: np.ndarray | None = None
 
         if measurement_operator is None and electrodes is not None and build_measurement_operator_if_needed:
             mesh = self._mesh_data()
@@ -67,6 +69,19 @@ class ForwardSolver:
         rhs = assemble_point_dipole_rhs_petsc(self.poisson_solver, source)
         return self.poisson_solver.solve(rhs)
 
+    def _measurement_nodal_values(self, dof_values: np.ndarray) -> np.ndarray:
+        """Return values in the ordering expected by the measurement operator."""
+        if self.measurement_operator is None:
+            return dof_values
+        ordering = self.measurement_operator.metadata.get("ordering", "meshdata_node")
+        if ordering == "dolfinx_dof":
+            return dof_values
+        if ordering != "meshdata_node":
+            raise ValueError(f"unsupported MeasurementOperator ordering {ordering!r}")
+        if self._node_to_dof_map is None:
+            self._node_to_dof_map = build_node_to_dof_map_p1(self.poisson_solver, tol=self.tol)
+        return dof_values[self._node_to_dof_map]
+
     def solve(self, source: PointDipole) -> ForwardResult:
         t_start = perf_counter()
         
@@ -77,8 +92,9 @@ class ForwardSolver:
             raw_measurements = np.empty((0,), dtype=float)
             measurements = np.empty((0,), dtype=float)
         else:
-            raw_measurements = self.measurement_operator.evaluate_raw(nodal_values)
-            measurements = self.measurement_operator.evaluate(nodal_values)
+            measurement_values = self._measurement_nodal_values(nodal_values)
+            raw_measurements = self.measurement_operator.evaluate_raw(measurement_values)
+            measurements = self.measurement_operator.evaluate(measurement_values)
 
         t = perf_counter() - t_start
         metadata = {

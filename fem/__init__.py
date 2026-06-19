@@ -1,4 +1,4 @@
-from .mesh_conversion import create_dolfinx_mesh, infer_cell_type
+from .mesh_conversion import build_node_to_dof_map_p1, create_dolfinx_mesh, infer_cell_type
 from .neumann_poisson import (
     FEMProblem,
     FunctionSpaceFactory,
@@ -18,6 +18,7 @@ __all__ = [
     "NeumannPoissonSolver",
     "SolverDiagnostics",
     "StiffnessOperator",
+    "build_node_to_dof_map_p1",
     "create_dolfinx_mesh",
     "infer_cell_type",
 ]

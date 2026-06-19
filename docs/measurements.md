@@ -92,7 +92,7 @@ M = op.matrix()
 - `evaluate_raw()` — raw electrode values;
 - `evaluate()` — referenced values.
 
-Строки `M` планируется использовать как RHS vectors для Green functions в будущем модуле.
+Строки `M` используются как RHS vectors в модуле `green`: `K G_i = M_i^T`. Перед записью в DOLFINx Function они отображаются из MeshData node ordering в DOLFINx DOF ordering.
 
 ## Constant potential test
 

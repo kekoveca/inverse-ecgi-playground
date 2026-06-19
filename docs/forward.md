@@ -54,9 +54,15 @@ result = forward.solve(source)
 
 ## Ordering note for measurements
 
-`potential.x.array` использует DOLFINx DOF ordering, а numpy `MeasurementOperator` строится по MeshData node ordering. Для production-моделей следует использовать только проверенное node-to-dof mapping. Нельзя считать совпадение ordering универсальным свойством.
+`potential.x.array` использует DOLFINx DOF ordering, а numpy `MeasurementOperator` строится по MeshData node ordering. `ForwardSolver` применяет проверенное coordinate-based `node_id -> dof_id` mapping и переставляет значения перед вычислением измерений. Совпадение integer ids не считается универсальным свойством.
 
 Source RHS уже решает эту проблему отдельно: он собирается непосредственно через `V.dofmap.cell_dofs`.
+
+## Green consistency
+
+Модуль `green` решает reciprocal systems `K G_i = M_i^T` и строит `A[j, i, :] = grad G_i(x_j)`. Для candidate source ordinary forward measurement сравнивается с `A_j @ p` через `compare_forward_and_green`. Это одновременно проверяет RHS convention, node/DOF mapping и вычисление P1 gradients.
+
+Подробности: [Green functions](green.md).
 
 ## Export
 

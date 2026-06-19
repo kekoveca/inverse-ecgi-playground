@@ -104,5 +104,9 @@ def build_measurement_operator(
         reference=reference,
         reference_index=reference_index,
         labels=electrodes.labels,
-        metadata={"mesh_name": mesh.name, "electrode_set": electrodes.name},
+        metadata={
+            "mesh_name": mesh.name,
+            "electrode_set": electrodes.name,
+            "ordering": "meshdata_node",
+        },
     )
