@@ -6,6 +6,10 @@ from .electrode_sets import (
     select_random_electrodes,
 )
 from .io import load_records_csv, save_forward_benchmark_result
+from .inverse_io import save_inverse_benchmark_result
+from .inverse_results import InverseBenchmarkRecord, InverseBenchmarkResult
+from .inverse_runner import InverseBenchmarkRunner, run_inverse_benchmark
+from .inverse_scenario import InverseBenchmarkScenario, filter_forward_result_by_electrode_set
 from .metrics import (
     compute_snr_db,
     correlation,
@@ -29,6 +33,10 @@ __all__ = [
     "ForwardBenchmarkResult",
     "ForwardBenchmarkRunner",
     "ForwardBenchmarkScenario",
+    "InverseBenchmarkRecord",
+    "InverseBenchmarkResult",
+    "InverseBenchmarkRunner",
+    "InverseBenchmarkScenario",
     "NoNoise",
     "NoiseModel",
     "RelativeGaussianNoise",
@@ -37,6 +45,7 @@ __all__ = [
     "compute_snr_db",
     "correlation",
     "forward_signal_metrics",
+    "filter_forward_result_by_electrode_set",
     "generate_random_sources_from_region",
     "generate_sources_from_region",
     "l2_norm",
@@ -47,6 +56,8 @@ __all__ = [
     "relative_l2_error",
     "rmse",
     "run_forward_benchmark",
+    "run_inverse_benchmark",
+    "save_inverse_benchmark_result",
     "save_forward_benchmark_result",
     "select_electrodes_by_indices",
     "select_farthest_point_electrodes",

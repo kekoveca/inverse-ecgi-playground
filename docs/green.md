@@ -113,3 +113,16 @@ transfer = load_green_transfer_matrix("output/green_transfer.npz")
 ```
 
 The cache stores `A`, candidate points, DOLFINx candidate cell ids, sign and JSON metadata. Green functions themselves are not stored.
+
+## Inverse handoff
+
+`GreenTransferMatrix` is the direct input to the `inverse` module:
+
+```python
+from inverse import SingleDipoleInverseSolver
+
+inverse_solver = SingleDipoleInverseSolver(transfer, lambda_reg=1e-10)
+inverse_result = inverse_solver.solve(observed_measurements)
+```
+
+Inverse reconstruction uses `transfer.matrix_for_candidate(j)`, so `GreenTransferMatrix.sign` remains the single place where the Green/FEM sign convention is represented.

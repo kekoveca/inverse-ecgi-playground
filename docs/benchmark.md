@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`benchmark` — инфраструктура forward-only experiments:
+`benchmark` — инфраструктура forward and inverse experiments:
 
 ```text
 geometry
@@ -15,7 +15,7 @@ geometry
   -> saved result
 ```
 
-Модуль не строит Green functions и не решает inverse problem. Он генерирует воспроизводимые synthetic observations, которые смогут использовать будущие слои.
+Модуль не строит Green functions сам. Forward benchmark генерирует воспроизводимые synthetic observations, а inverse benchmark применяет готовый `GreenTransferMatrix` к этим observations и считает localization/moment metrics.
 
 ## Scenario
 
@@ -144,6 +144,72 @@ results/torso_forward_smoke/
 
 Отдельные NPZ keys поддерживают разные количества электродов без unsafe object arrays.
 
-## Relation to future inverse benchmark
+## Inverse benchmark
 
-Сейчас records являются только synthetic forward observations. Будущие Green/inverse modules смогут читать их как benchmark inputs, но соответствующие алгоритмы намеренно не входят в `benchmark`.
+Inverse benchmark consumes a `ForwardBenchmarkResult` and a matching `GreenTransferMatrix`:
+
+```text
+ForwardBenchmarkResult
+  + GreenTransferMatrix
+  -> InverseBenchmarkRunner
+  -> InverseBenchmarkResult
+```
+
+```python
+from benchmark import (
+    InverseBenchmarkScenario,
+    InverseBenchmarkRunner,
+    filter_forward_result_by_electrode_set,
+    save_inverse_benchmark_result,
+)
+
+filtered = filter_forward_result_by_electrode_set(
+    forward_result,
+    electrode_set_name="all",
+)
+
+scenario = InverseBenchmarkScenario(
+    name="single_dipole_inverse",
+    forward_result=filtered,
+    transfer_matrix=transfer,
+    lambda_reg=1e-10,
+    localization_threshold=20.0,
+    use_clean_measurements=True,
+    use_noisy_measurements=True,
+    reference="average",
+)
+
+inverse_result = InverseBenchmarkRunner().run(scenario)
+save_inverse_benchmark_result(
+    inverse_result,
+    "results/single_dipole_inverse",
+)
+```
+
+Convenience wrapper:
+
+```python
+from benchmark import run_inverse_benchmark
+
+inverse_result = run_inverse_benchmark(
+    filtered,
+    transfer,
+    lambda_reg=1e-10,
+    localization_threshold=20.0,
+)
+```
+
+Outputs:
+
+```text
+results/single_dipole_inverse/
+├── inverse_config.json
+├── inverse_records.csv
+└── inverse_summary.json
+```
+
+`inverse_records.csv` contains true source data, estimated source data, residuals, localization error, moment error and optional success flag.
+
+Important restriction: one `InverseBenchmarkScenario` corresponds to one electrode subset and one `GreenTransferMatrix`. If a forward benchmark contains several electrode subsets, filter records before running inverse benchmark.
+
+Large residual maps and candidate moment maps are not saved by default. Store transfer matrices via the `green` cache when they should be reused across sweeps.

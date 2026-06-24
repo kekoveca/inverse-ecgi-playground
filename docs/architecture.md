@@ -33,7 +33,10 @@ green: K G_i = M_i^T
 dipole transfer matrix A
   |
   v
-inverse (future)
+inverse: discrete single-dipole search
+  |
+  v
+benchmark inverse metrics
 ```
 
 Experimental layer:
@@ -82,9 +85,13 @@ source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> expor
 
 Преобразует строки `M = R @ P` в совместимые Neumann RHS, решает Green-задачи на той же stiffness matrix и собирает `A[j, i, :] = grad G_i(x_j)`. Transfer matrix предсказывает измерения как `g = A_j p`; знак контролируется FEM/Green consistency diagnostic.
 
+### inverse
+
+Использует готовый `GreenTransferMatrix` и observed measurements. Для каждого candidate решает маленькую Tikhonov/LS-задачу на три компоненты момента и выбирает минимальный residual. Модуль не реализует multiple dipoles и не меняет sign convention.
+
 ### benchmark
 
-Комбинирует geometry, source sets, electrode subsets и noise models в forward-only experiments. Сохраняет clean/noisy measurements и scalar metrics; интеграция с Green и inverse остаётся отдельным следующим этапом.
+Комбинирует geometry, source sets, electrode subsets и noise models в forward experiments. Inverse benchmark consumes `ForwardBenchmarkResult` плюс `GreenTransferMatrix` и сохраняет localization/moment/residual metrics.
 
 ## Important separation
 
@@ -93,6 +100,8 @@ source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> expor
 - `sources` и `measurements` имеют numpy-only core. Их FEM-адаптеры принимают уже созданные DOLFINx-объекты.
 - `forward` не пересобирает матрицу: он использует существующий `NeumannPoissonSolver`. Экспорт через `dolfinx.io` импортируется лениво.
 - `green` использует numpy/scipy measurement matrices, но создаёт Green RHS через проверенный node-to-dof mapping.
+- `inverse` не зависит от DOLFINx напрямую: он работает с numpy transfer matrices и measurement vectors.
+- `benchmark` не строит GreenTransferMatrix внутри inverse runner; он принимает готовый transfer, чтобы sweeps по noise/electrodes/lambda не пересобирали Green-базис без необходимости.
 
 ## Ordering boundaries
 

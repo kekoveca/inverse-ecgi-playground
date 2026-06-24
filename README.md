@@ -8,7 +8,7 @@
 geometry -> FEM Neumann solver -> point dipole RHS -> electrode measurements -> ParaView export
 ```
 
-Текущий код включает Green-базис и transfer matrices и является основой для будущей обратной задачи. Inverse-модуль пока не входит в проект.
+Текущий код включает Green-базис, transfer matrices и single-dipole inverse reconstruction.
 
 ## Current modules
 
@@ -18,7 +18,8 @@ geometry -> FEM Neumann solver -> point dipole RHS -> electrode measurements -> 
 - [`measurements`](docs/measurements.md) — интерполяция потенциала на электроды и reference-системы.
 - [`forward`](docs/forward.md) — полный pipeline `source -> rhs -> potential -> measurements -> result` и экспорт в ParaView.
 - [`green`](docs/green.md) — Green-задачи для строк measurement matrix, градиенты в candidate points и dipole transfer matrix.
-- [`benchmark`](docs/benchmark.md) — forward-only sweeps по sources, electrode subsets и noise models с metrics и сохранением результатов.
+- [`inverse`](docs/inverse.md) — восстановление положения и момента одного диполя по `GreenTransferMatrix`.
+- [`benchmark`](docs/benchmark.md) — forward/inverse sweeps по sources, electrode subsets, noise models и reconstruction metrics.
 
 Вспомогательный модуль [`verification`](verification/README.md) содержит unit-cube mesh refinement, manufactured solutions и convergence reports.
 
@@ -117,6 +118,37 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
   pytest test_green_module.py
 ```
 
+Single-dipole inverse:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
+  pytest test_inverse_module.py
+```
+
+Минимальное использование inverse:
+
+```python
+from inverse import SingleDipoleInverseSolver
+
+inverse_solver = SingleDipoleInverseSolver(transfer, lambda_reg=1e-10)
+inverse_result = inverse_solver.solve(result.measurements)
+print(inverse_result.estimated_position)
+print(inverse_result.estimated_moment)
+```
+
+Inverse benchmark from saved/generated forward records:
+
+```python
+from benchmark import run_inverse_benchmark, save_inverse_benchmark_result
+
+inverse_result = run_inverse_benchmark(
+    forward_result,
+    transfer,
+    lambda_reg=1e-10,
+)
+save_inverse_benchmark_result(inverse_result, "results/inverse")
+```
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -126,6 +158,7 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
 - [Measurements](docs/measurements.md)
 - [Forward pipeline](docs/forward.md)
 - [Green functions](docs/green.md)
+- [Inverse](docs/inverse.md)
 - [Debugging](docs/debugging.md)
 - [Examples](docs/examples.md)
 - [MeshData details](docs/mesh_data.md)
