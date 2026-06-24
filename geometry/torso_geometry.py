@@ -10,7 +10,7 @@ from .source_region import SourceRegion
 
 @dataclass(frozen=True)
 class TorsoGeometry:
-    """Validated geometry bundle for forward and future inverse workflows.
+    """Validated geometry bundle for forward, Green and inverse workflows.
 
     It groups the volume mesh, optional surface mesh, electrodes and source
     region without introducing a dependency on FEniCSx.

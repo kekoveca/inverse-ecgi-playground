@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`green` converts electrode measurement functionals into reusable transfer matrices for point-dipole sources. It is the mathematical layer between the forward solver and a future inverse solver.
+`green` converts electrode measurement functionals into reusable transfer matrices for point-dipole sources. It is the mathematical layer between the forward solver and the inverse solver.
 
 ```text
 MeasurementOperator M

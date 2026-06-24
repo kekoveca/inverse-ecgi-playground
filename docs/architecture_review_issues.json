@@ -1,0 +1,162 @@
+[
+  {
+    "id": "ARCH-001",
+    "severity": "high",
+    "category": "ordering",
+    "module": "fem/green/forward",
+    "title": "Node-to-DOF mapping is serial-only and recomputed in several paths",
+    "description": "build_node_to_dof_map_p1 is the right abstraction boundary, but it currently supports only serial scalar P1 tetra spaces and is recomputed by ForwardSolver and green RHS creation. Large runs and MPI runs will either fail or pay repeated KDTree matching costs.",
+    "recommendation": "Promote a cached DOLFINxMapping object owned by FEMProblem/NeumannPoissonSolver, including node_to_dof, optional dof_to_node, local ownership metadata and clear serial/MPI semantics.",
+    "requires_behavior_change": true
+  },
+  {
+    "id": "ARCH-002",
+    "severity": "high",
+    "category": "api",
+    "module": "forward",
+    "title": "ForwardResult.nodal_values are DOLFINx DOF ordered despite the generic name",
+    "description": "ForwardSolver correctly maps DOF values into MeshData node ordering before evaluating MeasurementOperator, but ForwardResult.nodal_values stores potential.x.array in DOLFINx DOF ordering. Downstream users may pass it to measurement or geometry helpers and get subtly wrong results.",
+    "recommendation": "Rename or document as dof_values, add an explicit meshdata_nodal_values property/field, or include ordering metadata in ForwardResult.",
+    "requires_behavior_change": true
+  },
+  {
+    "id": "ARCH-003",
+    "severity": "high",
+    "category": "architecture",
+    "module": "green",
+    "title": "GreenBasis with row_indices subset can produce ambiguous transfer matrices",
+    "description": "GreenSolver.solve_all(row_indices=...) stores only selected functions, while GreenBasis.num_measurements still reports the full MeasurementOperator size. build_green_transfer_matrix then creates A with len(functions) channels, but metadata only records row_indices. InverseBenchmarkScenario validates only A.shape, so subset bases can silently represent a channel subset.",
+    "recommendation": "Either disallow row_indices in transfer matrix construction for now, or make GreenTransferMatrix carry measurement_row_indices and have inverse/benchmark validate them explicitly.",
+    "requires_behavior_change": true
+  },
+  {
+    "id": "ARCH-004",
+    "severity": "high",
+    "category": "math",
+    "module": "sources/green",
+    "title": "Source and candidate points on cell faces or vertices are mathematically ambiguous",
+    "description": "P1 point-dipole RHS and Green gradients are cell-local. If a source/candidate lies on a face, edge or vertex, several incident cells are valid and gradients differ. The code returns the first containing cell, which is deterministic but not physically unique.",
+    "recommendation": "Document this as a hard convention, add candidate-generation options that avoid mesh facets, and add diagnostics that flag barycentric coordinates near 0 or 1.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-005",
+    "severity": "medium",
+    "category": "reference",
+    "module": "measurements/green",
+    "title": "Green solves require compatible reference rows but forward scenarios allow reference='none'",
+    "description": "Average and single reference produce measurement rows with zero sum for P1 interpolation, but reference='none' generally produces incompatible Green RHS rows for pure Neumann systems. GreenSolver catches this, but the high-level workflow does not warn earlier.",
+    "recommendation": "Add a preflight validation helper for green/inverse benchmark scenarios that reports reference compatibility and suggests average or single reference.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-006",
+    "severity": "medium",
+    "category": "performance",
+    "module": "sources/green",
+    "title": "DOLFINx point location is O(num_points * num_cells)",
+    "description": "locate_point_in_dolfinx_p1_tetra_mesh scans local cells and reconstructs cell geometry from dofs for each point. This is robust for tests but expensive for source regions with many candidates.",
+    "recommendation": "Introduce a DOLFINx-side bounding box tree/BVH or cache cell centroids plus candidate cell ids; batch candidate lookup for transfer matrix construction.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-007",
+    "severity": "medium",
+    "category": "performance",
+    "module": "green",
+    "title": "Green functions are solved serially and stored by default",
+    "description": "GreenSolver solves one RHS per measurement channel and keep_functions=True stores all DOLFINx Functions. This is simple and correct, but memory and wall time grow quickly with electrode count.",
+    "recommendation": "Add chunked transfer construction, optional immediate gradient extraction without retaining all functions, and later parallel Green solves or block RHS support.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-008",
+    "severity": "medium",
+    "category": "benchmark",
+    "module": "green/benchmark",
+    "title": "GreenTransferMatrix cache lacks strong provenance metadata",
+    "description": "The transfer cache stores A, candidate points, candidate cell ids, sign and user metadata. It does not require geometry id, mesh hash, electrode set id, reference, measurement row ids, source-region id, sigma or code version. A stale transfer can be paired with incompatible forward records.",
+    "recommendation": "Define a required TransferProvenance metadata schema and validate it in inverse benchmark scenarios.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-009",
+    "severity": "medium",
+    "category": "benchmark",
+    "module": "benchmark",
+    "title": "Inverse benchmark supports only one electrode subset per transfer",
+    "description": "InverseBenchmarkScenario correctly rejects multiple electrode_set_name values, but users running large forward sweeps must manually filter records and manage one transfer per electrode/reference configuration.",
+    "recommendation": "Add an orchestration helper that groups ForwardBenchmarkResult records by electrode_set/reference and dispatches each group to the matching transfer matrix.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-010",
+    "severity": "medium",
+    "category": "api",
+    "module": "inverse",
+    "title": "Inverse tie and rank-deficiency diagnostics are weak",
+    "description": "SingleDipoleInverseSolver uses min residual and therefore picks the first candidate in ties. condition_number is recorded but no ambiguity flag or top-k gap metric is computed.",
+    "recommendation": "Add best-vs-second residual gap, rank/condition warnings and optional tie policy. Include these in inverse benchmark summaries.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-011",
+    "severity": "medium",
+    "category": "architecture",
+    "module": "fem",
+    "title": "Solver lifecycle relies on manual destroy calls",
+    "description": "Benchmarks use try/finally, but normal user workflows can forget solver.destroy() and leak PETSc objects. This matters in sweeps and notebooks.",
+    "recommendation": "Add context manager support to FEMProblem/NeumannPoissonSolver and update examples to use with-statements once available.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-012",
+    "severity": "medium",
+    "category": "measurements",
+    "module": "measurements/geometry",
+    "title": "Electrodes must be inside the tetra mesh; no projection workflow exists",
+    "description": "locate_electrodes_in_mesh requires electrode positions to be inside or on a tetrahedron. Real torso electrodes are often on a surface, slightly outside due to registration/projection error, or represented on a separate surface mesh.",
+    "recommendation": "Add explicit electrode projection/validation workflow: nearest surface point, tolerance report, and optional snapping before building MeasurementOperator.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-013",
+    "severity": "medium",
+    "category": "tests",
+    "module": "tests",
+    "title": "End-to-end tests use small synthetic meshes only",
+    "description": "The project has good unit and small integration tests, including forward-green and forward-green-inverse consistency. It does not yet have a noncommitted real-mesh regression or a larger synthetic mesh benchmark smoke test.",
+    "recommendation": "Add a deterministic medium-size synthetic mesh smoke test and, if licensing/size allows, a tiny representative gmsh fixture with physical groups and electrodes.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-014",
+    "severity": "low",
+    "category": "naming",
+    "module": "sources/green/benchmark",
+    "title": "The name cell_id is overloaded across MeshData and DOLFINx orderings",
+    "description": "The code documents the distinction well, but generic names like cell_id, candidate_cell_ids and source_cell_id still appear in public dataclasses and records with different semantics.",
+    "recommendation": "For a future API cleanup, introduce explicit meshdata_cell_id, dolfinx_cell_id and candidate_dolfinx_cell_ids names while keeping compatibility aliases.",
+    "requires_behavior_change": true
+  },
+  {
+    "id": "ARCH-015",
+    "severity": "low",
+    "category": "docs",
+    "module": "docs",
+    "title": "Coordinate units are not a first-class documented convention",
+    "description": "The code assumes source, electrode and mesh coordinates are in the same coordinate system, but docs do not clearly state whether examples use meters, millimeters or arbitrary units.",
+    "recommendation": "Add a short Units and coordinates section to geometry/README and top-level docs. Require benchmark metadata to state coordinate units.",
+    "requires_behavior_change": false
+  },
+  {
+    "id": "ARCH-016",
+    "severity": "info",
+    "category": "tests",
+    "module": "tests",
+    "title": "DOLFINx gating convention is consistent but split between pytestmark and local markers",
+    "description": "All DOLFINx tests are gated with RUN_DOLFINX_TESTS and importorskip. Some files use module-level pytestmark and others use requires_dolfinx markers. This is functional but slightly uneven.",
+    "recommendation": "Optional cleanup: centralize the gating helper in a small test utility if tests keep growing.",
+    "requires_behavior_change": false
+  }
+]
