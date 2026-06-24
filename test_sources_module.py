@@ -5,6 +5,7 @@ from geometry import MeshData
 from sources import (
     PointDipole,
     assemble_point_dipole_rhs_numpy,
+    barycentric_boundary_flags,
     barycentric_coordinates_tetra,
     check_rhs_compatibility,
     gradients_p1_tetra,
@@ -55,6 +56,23 @@ def test_barycentric_coordinates_tetra_standard_tetra():
 
     assert np.allclose(lambdas, [0.25, 0.25, 0.25, 0.25])
     assert np.isclose(lambdas.sum(), 1.0)
+
+
+def test_barycentric_boundary_flags_classify_interior_face_edge_and_vertex():
+    interior = barycentric_boundary_flags(np.array([0.25, 0.25, 0.25, 0.25]))
+    face = barycentric_boundary_flags(np.array([0.0, 0.25, 0.25, 0.5]))
+    edge = barycentric_boundary_flags(np.array([0.0, 0.0, 0.25, 0.75]))
+    vertex = barycentric_boundary_flags(np.array([1.0, 0.0, 0.0, 0.0]))
+
+    assert interior["is_on_boundary"] is False
+    assert interior["boundary_kind"] == "interior"
+    assert face["is_on_boundary"] is True
+    assert face["boundary_kind"] == "face"
+    assert np.array_equal(face["near_zero_indices"], [0])
+    assert edge["boundary_kind"] == "edge"
+    assert np.array_equal(edge["near_zero_indices"], [0, 1])
+    assert vertex["boundary_kind"] == "vertex"
+    assert np.array_equal(vertex["near_one_indices"], [0])
 
 
 def test_point_in_tetra_detects_inside_and_outside_points():

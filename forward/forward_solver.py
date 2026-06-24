@@ -95,11 +95,19 @@ class ForwardSolver:
             measurement_values = self._measurement_nodal_values(nodal_values)
             raw_measurements = self.measurement_operator.evaluate_raw(measurement_values)
             measurements = self.measurement_operator.evaluate(measurement_values)
+        meshdata_nodal_values = None
+        measurement_ordering = None
+        if self.measurement_operator is not None:
+            measurement_ordering = self.measurement_operator.metadata.get("ordering", "meshdata_node")
+            if measurement_ordering == "meshdata_node":
+                meshdata_nodal_values = measurement_values.copy()
 
         t = perf_counter() - t_start
         metadata = {
             "solver": self.poisson_solver.__class__.__name__,
             "has_measurement_operator": self.measurement_operator is not None,
+            "potential_ordering": "dolfinx_dof",
+            "measurement_operator_ordering": measurement_ordering,
             "time": t,
         }
         return ForwardResult(
@@ -110,4 +118,6 @@ class ForwardSolver:
             measurements=measurements,
             reference=self.reference,
             metadata=metadata,
+            nodal_value_ordering="dolfinx_dof",
+            meshdata_nodal_values=meshdata_nodal_values,
         )

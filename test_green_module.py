@@ -71,6 +71,19 @@ def test_transfer_matrix_predict_respects_sign():
     assert np.allclose(transfer.predict(0, moment), -(A[0] @ moment))
 
 
+def test_transfer_matrix_records_measurement_row_indices():
+    transfer = GreenTransferMatrix(
+        A=np.ones((1, 3, 3), dtype=float),
+        candidate_points=np.array([[0.0, 0.0, 0.0]]),
+        candidate_cell_ids=np.array([0]),
+        measurement_row_indices=np.array([2, 4, 7]),
+    )
+
+    assert np.array_equal(transfer.measurement_row_indices, [2, 4, 7])
+    assert transfer.to_summary_dict()["measurement_row_indices"] == [2, 4, 7]
+    assert transfer.metadata["measurement_row_indices"] == [2, 4, 7]
+
+
 def test_compare_forward_and_green_finds_sign():
     A = np.zeros((1, 2, 3), dtype=float)
     A[0, :, 0] = [2.0, -3.0]
@@ -95,6 +108,7 @@ def test_green_transfer_cache_roundtrip(tmp_path):
         candidate_cell_ids=np.array([2, 5]),
         sign=-1.0,
         metadata={"reference": "average", "version": 1},
+        measurement_row_indices=np.array([3, 5, 8]),
     )
 
     path = save_green_transfer_matrix(transfer, tmp_path / "green_transfer.npz")
@@ -104,6 +118,7 @@ def test_green_transfer_cache_roundtrip(tmp_path):
     assert np.allclose(loaded.A, transfer.A)
     assert np.allclose(loaded.candidate_points, transfer.candidate_points)
     assert np.array_equal(loaded.candidate_cell_ids, transfer.candidate_cell_ids)
+    assert np.array_equal(loaded.measurement_row_indices, transfer.measurement_row_indices)
     assert loaded.sign == -1.0
     assert loaded.metadata == transfer.metadata
 
@@ -141,9 +156,13 @@ def test_node_to_dof_map_p1_one_tetra():
     solver = _make_solver()
     try:
         node_to_dof = build_node_to_dof_map_p1(solver)
+        mapping = solver.p1_node_dof_mapping()
         dof_coords = solver.V.tabulate_dof_coordinates()
 
         assert sorted(node_to_dof.tolist()) == [0, 1, 2, 3]
+        assert np.array_equal(mapping.node_to_dof, node_to_dof)
+        assert np.array_equal(mapping.dof_to_node[node_to_dof], np.arange(4))
+        assert solver.p1_node_dof_mapping() is mapping
         assert np.allclose(dof_coords[node_to_dof, :3], solver.mesh_data.points)
     finally:
         solver.destroy()
@@ -220,5 +239,7 @@ def test_green_forward_consistency_small_mesh():
         assert diagnostics["rel_error_plus"] < 1e-6
         assert diagnostics["best_sign"] == 1.0
         assert np.all(np.isfinite(transfer.A))
+        assert np.array_equal(transfer.measurement_row_indices, [0, 1, 2])
+        assert transfer.metadata["num_boundary_candidates"] == 0
     finally:
         solver.destroy()

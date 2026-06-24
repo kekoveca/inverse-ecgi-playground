@@ -74,6 +74,9 @@ def test_barycentric_coordinates_are_inside_used_dolfinx_cell():
         assert info["barycentric_min"] >= -1e-10
         assert info["barycentric_sum"] == pytest.approx(1.0)
         assert np.allclose(info["barycentric_in_dolfinx_cell"], [0.25, 0.25, 0.25, 0.25])
+        assert info["is_near_cell_boundary"] is False
+        assert info["cell_boundary_kind"] == "interior"
+        assert info["location_ambiguity_warning"] is None
     finally:
         solver.destroy()
 

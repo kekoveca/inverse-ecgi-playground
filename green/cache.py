@@ -26,6 +26,7 @@ def save_green_transfer_matrix(transfer_matrix: GreenTransferMatrix, path) -> Pa
         A=transfer_matrix.A,
         candidate_points=transfer_matrix.candidate_points,
         candidate_cell_ids=transfer_matrix.candidate_cell_ids,
+        measurement_row_indices=transfer_matrix.measurement_row_indices,
         sign=np.asarray(transfer_matrix.sign, dtype=float),
         metadata_json=np.asarray(metadata_json),
     )
@@ -42,4 +43,5 @@ def load_green_transfer_matrix(path) -> GreenTransferMatrix:
             candidate_cell_ids=data["candidate_cell_ids"],
             sign=float(data["sign"].item()),
             metadata=metadata,
+            measurement_row_indices=data["measurement_row_indices"] if "measurement_row_indices" in data.files else None,
         )

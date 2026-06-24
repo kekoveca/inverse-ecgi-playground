@@ -12,12 +12,12 @@ The strongest parts are the explicit separation between `MeshData` and DOLFINx, 
 
 The main architectural risks are not conceptual; they are scale and semantics risks:
 
-- DOLFINx mapping and point-location helpers are serial/MVP and will not scale to MPI or large source regions without a dedicated mapping/location layer.
-- Some public names still hide ordering semantics (`nodal_values`, `cell_id`, `candidate_cell_ids`).
-- Green and inverse APIs can represent measurement-channel subsets, but benchmark/provenance metadata is not yet strong enough to prevent accidental mismatches.
+- DOLFINx mapping is now cached on the solver, but it remains serial/MVP and will not scale to MPI without a dedicated ownership-aware mapping layer.
+- Some public names still hide ordering semantics (`cell_id`, `candidate_cell_ids`), though `ForwardResult` now records potential ordering explicitly.
+- Green transfer matrices now carry measurement row ids, but benchmark/provenance metadata is not yet strong enough to prevent stale-cache mismatches.
 - Real torso workflows need stronger provenance, electrode projection, GreenTransferMatrix cache validation and ambiguity diagnostics.
 
-No large refactor was performed in this pass. Only two stale documentation strings were updated.
+No large refactor was performed in this pass. The originally high-severity ordering/API issues were addressed with small compatibility-preserving changes; remaining items are medium/roadmap risks.
 
 ## Current architecture map
 
@@ -93,7 +93,7 @@ Good:
 Risks:
 
 - `build_node_to_dof_map_p1` is serial only and coordinate-based. It explicitly rejects MPI, which is safe, but any future distributed benchmark will need a real ownership-aware mapping.
-- Mapping is computed/cached in `ForwardSolver`, but Green RHS creation currently recomputes it for each row.
+- `FEMProblem`/`NeumannPoissonSolver` now owns a cached serial `DOLFINxP1Mapping` with both `node_to_dof` and `dof_to_node`.
 - `destroy()` is manual. Benchmarks use `try/finally`, but user code can leak PETSc resources.
 - Solver tolerances are mostly PETSc defaults unless tests manually tighten them. This is fine for production flexibility, but benchmark reproducibility should record KSP options.
 
@@ -112,6 +112,7 @@ Risks:
 
 - DOLFINx cell location is a full scan over local cells.
 - Sources on mesh facets are ambiguous; the first containing cell wins.
+- Diagnostics now flag face/edge/vertex barycentric ambiguity, but source-region generation does not yet avoid facets automatically.
 - Some public parameters are named `cell_id` even when their semantic order differs by function.
 
 ### measurements
@@ -141,7 +142,7 @@ Good:
 
 Risks:
 
-- `ForwardResult.nodal_values` stores DOLFINx DOF-order values. The name is easy to misread as MeshData node ordering.
+- `ForwardResult.nodal_values` remains the backward-compatible field name, but `nodal_value_ordering`, `dof_values` and optional `meshdata_nodal_values` now make the ordering explicit.
 - `ForwardSolver.solve_potential` does not expose `trust_source_cell_id`; that is good for safety but advanced users may need an explicit diagnostic path.
 - Timing metadata is useful but not enough for reproducible solver settings.
 
@@ -188,7 +189,7 @@ Good:
 
 Risks:
 
-- `GreenSolver.solve_all(row_indices=...)` can produce a partial basis, but `GreenBasis.num_measurements` still reports the full measurement operator size.
+- `GreenTransferMatrix` now carries `measurement_row_indices`, so partial Green bases are explicit at the transfer level.
 - Candidate cell ids in `GreenTransferMatrix` are DOLFINx ids, while `SourceRegion.candidate_cell_ids` are MeshData ids. This is documented, but the shared field name remains risky.
 - `keep_functions=False` produces a basis that cannot build a transfer matrix; this is clear but limits memory-saving workflows.
 - Metadata in cached transfer matrices is optional and too weak for benchmark-scale reproducibility.
@@ -224,7 +225,7 @@ Current state:
 | `SourceRegion.candidate_cell_ids` | `geometry` | MeshData cell ids |
 | `GreenTransferMatrix.candidate_cell_ids` | `green` | DOLFINx cell ids |
 | `MeasurementOperator.matrix()` | `measurements` | MeshData node ordering |
-| `ForwardResult.nodal_values` | `forward` | DOLFINx DOF ordering |
+| `ForwardResult.nodal_values` | `forward` | DOLFINx DOF ordering, explicitly marked by `nodal_value_ordering` |
 
 The conventions are mostly safe in code. The remaining risk is naming: `cell_id` is used in multiple public APIs with different orderings. Future API cleanup should introduce explicit names while preserving compatibility aliases.
 
@@ -251,7 +252,7 @@ The project assumes mesh, electrode and source coordinates use the same coordina
 
 ## Numerical correctness risks
 
-1. Facet/vertex source ambiguity can change local RHS/gradient values.
+1. Facet/vertex source ambiguity can change local RHS/gradient values; diagnostics now flag these cases.
 2. Wrong coordinate units or registration offsets can make inverse results look wrong while all numerics are internally consistent.
 3. Incompatible reference rows will fail Green solves; this is caught but late.
 4. KSP tolerances affect Green/forward consistency at the `1e-5` level unless tightened in tests.
@@ -291,10 +292,10 @@ Potential future helpers:
 | --- | --- | --- | --- |
 | Geometry import/tags | field_data conversion, MeshData, SourceRegion, TorsoGeometry | real small `.msh` fixture with physical groups | Medium |
 | FEM/nullspace | unit mocks, DOLFINx integration, manufactured convergence | MPI/distributed run | Medium |
-| Sources | tetra geometry, numpy RHS, PETSc RHS localization, source location diagnostics | facet/vertex ambiguity warnings | Medium |
+| Sources | tetra geometry, numpy RHS, PETSc RHS localization, source location diagnostics, facet/edge/vertex flags | source-region filtering that avoids facets | Medium |
 | Measurements | interpolation, references, constant invariance, sparse/dense | electrode projection from surface/outside volume | Medium |
 | Forward | result/export, DOLFINx solve, convergence, linearity/scaling | larger realistic geometry smoke | Medium |
-| Green | compatibility, RHS mapping, gradient, cache, forward/Green consistency | row_indices subset semantics | High |
+| Green | compatibility, RHS mapping, gradient, cache, row-indexed transfer matrices, forward/Green consistency | stronger transfer provenance validation | Medium |
 | Inverse | LS, sign use, metrics, forward/Green/inverse consistency | ambiguity/tie/rank-deficiency diagnostics | Medium |
 | Benchmark | forward records/io, inverse records/io, DOLFINx inverse benchmark smoke | multi-electrode-subset orchestration and provenance validation | Medium |
 
@@ -320,7 +321,7 @@ Gaps:
 
 Short-term bottlenecks:
 
-- Repeated `node_to_dof` KDTree matching.
+- Serial coordinate-based `node_to_dof` KDTree matching is cached but still not MPI-aware.
 - O(num_candidates * num_cells) DOLFINx point location.
 - One Green solve per measurement channel.
 - Storing all Green functions by default.
@@ -344,7 +345,7 @@ Long-term bottlenecks:
 The project is ready for small-to-medium serial single-dipole experiments with synthetic meshes and controlled source regions. It is not yet ready for large production torso benchmarks without adding:
 
 - transfer provenance validation;
-- cached node/dof and candidate/cell mappings;
+- MPI-aware node/dof mapping and cached candidate/cell mappings;
 - transfer matrix cache policy;
 - electrode projection/quality reports;
 - grouped inverse benchmark orchestration;
@@ -359,10 +360,14 @@ No immediate critical correctness defect was found in the tested serial P1 singl
 
 ### High
 
-1. Add a cached FEM mapping/provenance object.
-2. Rename or augment `ForwardResult.nodal_values` to expose ordering explicitly.
-3. Fix or constrain `GreenSolver.solve_all(row_indices=...)` semantics before users rely on partial channel transfer matrices.
-4. Add facet/vertex ambiguity diagnostics for source and candidate points.
+The initial high-severity issues from this review were addressed in the follow-up pass:
+
+1. Cached FEM mapping object: added serial `DOLFINxP1Mapping` owned by the solver.
+2. `ForwardResult.nodal_values` ordering: added explicit ordering metadata and `dof_values`/`meshdata_nodal_values` access.
+3. Partial Green row semantics: `GreenTransferMatrix` now carries `measurement_row_indices`.
+4. Facet/vertex ambiguity: source diagnostics and Green transfer metadata now flag boundary candidates.
+
+No unresolved high-severity item remains in `architecture_review_issues.json`; the residual work is listed as medium priority.
 
 ### Medium
 
@@ -385,20 +390,27 @@ Detailed machine-readable issues are in [`architecture_review_issues.json`](arch
 
 Top issues:
 
-1. `ARCH-001`: serial/recomputed node-to-DOF mapping.
-2. `ARCH-002`: `ForwardResult.nodal_values` ordering ambiguity.
-3. `ARCH-003`: partial Green basis row semantics.
-4. `ARCH-004`: source/candidate facet ambiguity.
-5. `ARCH-008`: weak GreenTransferMatrix provenance for benchmarks.
+1. `ARCH-001`: cached node-to-DOF mapping remains serial-only.
+2. `ARCH-004`: source/candidate facet ambiguity is diagnosed but still a modeling constraint.
+3. `ARCH-008`: weak GreenTransferMatrix provenance for benchmarks.
+4. `ARCH-006`: DOLFINx point location is still O(num_points * num_cells).
+5. `ARCH-009`: inverse benchmark still needs grouped transfer orchestration for many electrode subsets.
 
 ## Safe fixes applied in this pass
 
-Only documentation-level fixes were applied:
+Initial documentation-level fixes:
 
 - Updated `TorsoGeometry` docstring from "future inverse" to "forward, Green and inverse workflows".
 - Updated `docs/green.md` wording from "future inverse solver" to "the inverse solver".
 
-No behavior, API, mathematical sign, or data format was changed.
+Follow-up high-issue fixes:
+
+- Added `DOLFINxP1Mapping` and cached `FEMProblem.p1_node_dof_mapping()` with `node_to_dof` and `dof_to_node`.
+- Added explicit `ForwardResult.nodal_value_ordering`, `ForwardResult.dof_values` and optional `ForwardResult.meshdata_nodal_values`.
+- Added `GreenTransferMatrix.measurement_row_indices` and preserved it in transfer cache files.
+- Added barycentric boundary classification and propagated source/candidate ambiguity diagnostics.
+
+No mathematical sign convention was changed.
 
 ## Open questions
 

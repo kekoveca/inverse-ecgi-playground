@@ -1,42 +1,42 @@
 [
   {
     "id": "ARCH-001",
-    "severity": "high",
+    "severity": "medium",
     "category": "ordering",
     "module": "fem/green/forward",
-    "title": "Node-to-DOF mapping is serial-only and recomputed in several paths",
-    "description": "build_node_to_dof_map_p1 is the right abstraction boundary, but it currently supports only serial scalar P1 tetra spaces and is recomputed by ForwardSolver and green RHS creation. Large runs and MPI runs will either fail or pay repeated KDTree matching costs.",
-    "recommendation": "Promote a cached DOLFINxMapping object owned by FEMProblem/NeumannPoissonSolver, including node_to_dof, optional dof_to_node, local ownership metadata and clear serial/MPI semantics.",
+    "title": "Node-to-DOF mapping is cached but remains serial-only",
+    "description": "Fixed: FEMProblem/NeumannPoissonSolver now owns a cached DOLFINxP1Mapping with node_to_dof, dof_to_node and serial metadata, and existing helpers delegate to that cache. Remaining limitation: the coordinate-based mapping intentionally supports only serial scalar P1 tetra spaces.",
+    "recommendation": "For MPI benchmarks, replace the serial coordinate matching with an ownership-aware DOLFINx mapping that records local/global dof ownership and ghost semantics.",
     "requires_behavior_change": true
   },
   {
     "id": "ARCH-002",
-    "severity": "high",
+    "severity": "info",
     "category": "api",
     "module": "forward",
-    "title": "ForwardResult.nodal_values are DOLFINx DOF ordered despite the generic name",
-    "description": "ForwardSolver correctly maps DOF values into MeshData node ordering before evaluating MeasurementOperator, but ForwardResult.nodal_values stores potential.x.array in DOLFINx DOF ordering. Downstream users may pass it to measurement or geometry helpers and get subtly wrong results.",
-    "recommendation": "Rename or document as dof_values, add an explicit meshdata_nodal_values property/field, or include ordering metadata in ForwardResult.",
-    "requires_behavior_change": true
+    "title": "ForwardResult potential ordering is now explicit",
+    "description": "Fixed: ForwardResult now records nodal_value_ordering, exposes dof_values for DOLFINx dof-ordered potentials, includes ordering metadata in to_dict(), and can carry meshdata_nodal_values when ForwardSolver evaluates a MeshData-ordered MeasurementOperator.",
+    "recommendation": "A future API cleanup may rename nodal_values to dof_values while keeping a compatibility alias.",
+    "requires_behavior_change": false
   },
   {
     "id": "ARCH-003",
-    "severity": "high",
+    "severity": "info",
     "category": "architecture",
     "module": "green",
-    "title": "GreenBasis with row_indices subset can produce ambiguous transfer matrices",
-    "description": "GreenSolver.solve_all(row_indices=...) stores only selected functions, while GreenBasis.num_measurements still reports the full MeasurementOperator size. build_green_transfer_matrix then creates A with len(functions) channels, but metadata only records row_indices. InverseBenchmarkScenario validates only A.shape, so subset bases can silently represent a channel subset.",
-    "recommendation": "Either disallow row_indices in transfer matrix construction for now, or make GreenTransferMatrix carry measurement_row_indices and have inverse/benchmark validate them explicitly.",
-    "requires_behavior_change": true
+    "title": "GreenTransferMatrix now carries measurement row indices",
+    "description": "Fixed: GreenTransferMatrix has explicit measurement_row_indices, build_green_transfer_matrix validates one row id per retained Green function, summaries expose the row ids, and transfer cache round-trips them.",
+    "recommendation": "Benchmark provenance should still validate that measurement_row_indices match the observation channel definition for cached transfers.",
+    "requires_behavior_change": false
   },
   {
     "id": "ARCH-004",
-    "severity": "high",
+    "severity": "medium",
     "category": "math",
     "module": "sources/green",
-    "title": "Source and candidate points on cell faces or vertices are mathematically ambiguous",
-    "description": "P1 point-dipole RHS and Green gradients are cell-local. If a source/candidate lies on a face, edge or vertex, several incident cells are valid and gradients differ. The code returns the first containing cell, which is deterministic but not physically unique.",
-    "recommendation": "Document this as a hard convention, add candidate-generation options that avoid mesh facets, and add diagnostics that flag barycentric coordinates near 0 or 1.",
+    "title": "Facet/vertex ambiguity is diagnosed but still a modeling constraint",
+    "description": "Fixed: barycentric boundary flags classify interior/face/edge/vertex cases; point-dipole PETSc diagnostics report is_near_cell_boundary, boundary kind and ambiguity warning; Green transfer metadata reports boundary candidate indices. Remaining limitation: source-region generation does not yet actively avoid facets.",
+    "recommendation": "Add source-region generation options that filter or jitter candidates away from facets, and document the selected convention for real benchmarks.",
     "requires_behavior_change": false
   },
   {
@@ -75,7 +75,7 @@
     "category": "benchmark",
     "module": "green/benchmark",
     "title": "GreenTransferMatrix cache lacks strong provenance metadata",
-    "description": "The transfer cache stores A, candidate points, candidate cell ids, sign and user metadata. It does not require geometry id, mesh hash, electrode set id, reference, measurement row ids, source-region id, sigma or code version. A stale transfer can be paired with incompatible forward records.",
+    "description": "The transfer cache stores A, candidate points, DOLFINx candidate cell ids, measurement row ids, sign and user metadata. It still does not require geometry id, mesh hash, electrode set id, reference, source-region id, sigma or code version. A stale transfer can be paired with incompatible forward records.",
     "recommendation": "Define a required TransferProvenance metadata schema and validate it in inverse benchmark scenarios.",
     "requires_behavior_change": false
   },

@@ -55,6 +55,40 @@ def barycentric_coordinates_tetra(point, vertices, tol: float = 1e-14) -> np.nda
     return inv_matrix @ rhs
 
 
+def barycentric_boundary_flags(barycentric, tol: float = 1e-10) -> dict:
+    """Classify whether barycentric coordinates are near a face/edge/vertex.
+
+    Interior points have no coordinate near 0 or 1. Points near tetrahedron
+    boundaries are geometrically ambiguous for cell-local P1 dipole assembly,
+    because multiple neighboring cells may be valid containing cells.
+    """
+    lambdas = np.asarray(barycentric, dtype=float)
+    if lambdas.shape != (4,):
+        raise ValueError(f"barycentric must have shape (4,), got {lambdas.shape}")
+    if not np.all(np.isfinite(lambdas)):
+        raise ValueError("barycentric coordinates must be finite")
+    tol = float(tol)
+    near_zero = np.flatnonzero(np.abs(lambdas) <= tol).astype(np.int64)
+    near_one = np.flatnonzero(np.abs(lambdas - 1.0) <= tol).astype(np.int64)
+    if near_one.size > 0:
+        boundary_kind = "vertex"
+    elif near_zero.size >= 2:
+        boundary_kind = "edge"
+    elif near_zero.size == 1:
+        boundary_kind = "face"
+    else:
+        boundary_kind = "interior"
+    is_on_boundary = boundary_kind != "interior"
+    return {
+        "is_on_boundary": bool(is_on_boundary),
+        "boundary_kind": boundary_kind,
+        "near_zero_indices": near_zero,
+        "near_one_indices": near_one,
+        "min_barycentric": float(lambdas.min()),
+        "max_barycentric": float(lambdas.max()),
+    }
+
+
 def point_in_tetra(point, vertices, tol: float = 1e-10) -> bool:
     """Return whether ``point`` lies inside or on a tetrahedron."""
     lambdas = barycentric_coordinates_tetra(point, vertices, tol=min(tol, 1e-14))

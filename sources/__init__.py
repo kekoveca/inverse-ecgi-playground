@@ -1,4 +1,5 @@
 from .cell_geometry import (
+    barycentric_boundary_flags,
     barycentric_coordinates_tetra,
     gradients_p1_tetra,
     point_in_tetra,
@@ -25,6 +26,7 @@ __all__ = [
     "PointDipole",
     "assemble_point_dipole_rhs_numpy",
     "assemble_point_dipole_rhs_petsc",
+    "barycentric_boundary_flags",
     "barycentric_coordinates_tetra",
     "check_rhs_compatibility",
     "compare_meshdata_and_dolfinx_cell_centers",

@@ -176,6 +176,8 @@ class FEMProblem:
 
         self.function_space_factory = FunctionSpaceFactory(degree=self.degree)
         self.domain, self.V = self.function_space_factory.create(mesh_data, comm=self.comm, fx=fx)
+        self._p1_node_dof_mapping = None
+        self._p1_node_dof_mapping_tol: float | None = None
 
         self.a_form = None
         self.A = None
@@ -234,6 +236,34 @@ class FEMProblem:
             pc_type=self.pc_type,
         )
         self.ksp = self.linear_solver.ksp
+
+    def p1_node_dof_mapping(self, *, tol: float = 1e-12):
+        """Return cached MeshData-node/DOLFINx-dof mapping for serial P1 spaces.
+
+        The mapping is explicitly in ``MeshData node id -> DOLFINx dof id``
+        order. It is serial-only in the MVP and raises for distributed meshes.
+        """
+        tol = float(tol)
+        if (
+            self._p1_node_dof_mapping is None
+            or self._p1_node_dof_mapping_tol is None
+            or tol < self._p1_node_dof_mapping_tol
+        ):
+            from .mesh_conversion import build_p1_node_dof_mapping
+
+            self._p1_node_dof_mapping = build_p1_node_dof_mapping(self, tol=tol)
+            self._p1_node_dof_mapping_tol = tol
+        return self._p1_node_dof_mapping
+
+    @property
+    def node_to_dof_map(self) -> np.ndarray:
+        """Cached ``node_to_dof[node_id] == dof_id`` map for scalar P1."""
+        return self.p1_node_dof_mapping().node_to_dof
+
+    @property
+    def dof_to_node_map(self) -> np.ndarray:
+        """Cached inverse ``dof_to_node[dof_id] == node_id`` map for scalar P1."""
+        return self.p1_node_dof_mapping().dof_to_node
 
     def zero_function(self):
         """Return a zero ``dolfinx.fem.Function`` in the solver space."""

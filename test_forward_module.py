@@ -63,6 +63,9 @@ def test_forward_result_properties():
     )
 
     assert result.num_nodes == 3
+    assert result.nodal_value_ordering == "dolfinx_dof"
+    assert result.has_meshdata_nodal_values is False
+    assert np.allclose(result.dof_values, result.nodal_values)
     assert result.num_electrodes == 2
     assert result.measurement_norm == pytest.approx(np.linalg.norm(result.measurements))
     assert result.raw_measurement_norm == pytest.approx(np.linalg.norm(result.raw_measurements))
@@ -83,6 +86,8 @@ def test_forward_result_to_dict_omits_large_arrays():
 
     assert summary["num_nodes"] == 3
     assert summary["num_electrodes"] == 2
+    assert summary["nodal_value_ordering"] == "dolfinx_dof"
+    assert summary["has_meshdata_nodal_values"] is False
     assert summary["measurement_norm"] == pytest.approx(result.measurement_norm)
     assert summary["raw_measurement_norm"] == pytest.approx(result.raw_measurement_norm)
     assert summary["reference"] == "average"
@@ -116,6 +121,11 @@ def test_forward_solve_on_one_tetra():
     problem, result = _forward_result_for_one_tetra()
     try:
         assert result.nodal_values.shape[0] == 4
+        assert result.nodal_value_ordering == "dolfinx_dof"
+        assert result.meshdata_nodal_values is not None
+        assert result.meshdata_nodal_values.shape == result.nodal_values.shape
+        assert result.metadata["potential_ordering"] == "dolfinx_dof"
+        assert result.metadata["measurement_operator_ordering"] == "meshdata_node"
         assert result.raw_measurements.shape == (2,)
         assert result.measurements.shape == (2,)
         assert result.measurements.sum() == pytest.approx(0.0, abs=1e-12)

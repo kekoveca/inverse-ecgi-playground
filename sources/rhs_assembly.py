@@ -5,7 +5,12 @@ from scipy.spatial import cKDTree
 
 from geometry import MeshData
 
-from .cell_geometry import barycentric_coordinates_tetra, gradients_p1_tetra, point_in_tetra
+from .cell_geometry import (
+    barycentric_boundary_flags,
+    barycentric_coordinates_tetra,
+    gradients_p1_tetra,
+    point_in_tetra,
+)
 from .point_dipole import PointDipole
 
 
@@ -332,8 +337,15 @@ def inspect_point_dipole_location_petsc(
         ordering_warning = "equal integer MeshData and DOLFINx cell ids have different geometric centers"
 
     barycentric = barycentric_coordinates_tetra(source.position, dof_coordinates)
+    boundary_flags = barycentric_boundary_flags(barycentric, tol=tol)
     barycentric_min = float(barycentric.min())
     barycentric_sum = float(barycentric.sum())
+    ambiguity_warning = None
+    if boundary_flags["is_on_boundary"]:
+        ambiguity_warning = (
+            "source.position lies on or near a DOLFINx cell "
+            f"{boundary_flags['boundary_kind']}; cell-local P1 dipole RHS may be ambiguous"
+        )
     return {
         "declared_position": source.position.copy(),
         "declared_cell_id": source.cell_id,
@@ -351,6 +363,11 @@ def inspect_point_dipole_location_petsc(
         "barycentric_in_dolfinx_cell": barycentric,
         "barycentric_min": barycentric_min,
         "barycentric_sum": barycentric_sum,
+        "is_near_cell_boundary": boundary_flags["is_on_boundary"],
+        "cell_boundary_kind": boundary_flags["boundary_kind"],
+        "barycentric_near_zero_indices": boundary_flags["near_zero_indices"],
+        "barycentric_near_one_indices": boundary_flags["near_one_indices"],
+        "location_ambiguity_warning": ambiguity_warning,
         "is_inside_used_dolfinx_cell": bool(
             barycentric_min >= -tol and np.all(barycentric <= 1.0 + tol) and abs(barycentric_sum - 1.0) <= tol
         ),
