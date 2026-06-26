@@ -189,6 +189,70 @@ def test_export_vtx_creates_output(tmp_path):
         problem.destroy()
 
 
+@requires_dolfinx
+def test_create_electrode_marker_function_one_tetra():
+    pytest.importorskip("dolfinx")
+
+    from fem import NeumannPoissonSolver
+    from forward import create_electrode_marker_function
+
+    problem = NeumannPoissonSolver(single_tetra_mesh(), pc_type="none", test_nullspace=True)
+    try:
+        marker = create_electrode_marker_function(problem, two_electrodes(), value_mode="index")
+        nonzero = np.flatnonzero(np.abs(marker.x.array) > 1e-14)
+
+        assert nonzero.shape == (2,)
+        assert np.allclose(np.sort(marker.x.array[nonzero]), [1.0, 2.0])
+    finally:
+        problem.destroy()
+
+
+@requires_dolfinx
+def test_inspect_electrode_marker_mapping():
+    pytest.importorskip("dolfinx")
+
+    from fem import NeumannPoissonSolver
+    from forward import inspect_electrode_marker_mapping
+
+    problem = NeumannPoissonSolver(single_tetra_mesh(), pc_type="none", test_nullspace=True)
+    try:
+        info = inspect_electrode_marker_mapping(problem, two_electrodes())
+
+        assert info["num_electrodes"] == 2
+        assert info["num_unique_dofs"] == 2
+        assert info["num_collisions"] == 0
+        assert info["max_distance"] == pytest.approx(0.0, abs=1e-12)
+        assert info["mean_distance"] == pytest.approx(0.0, abs=1e-12)
+    finally:
+        problem.destroy()
+
+
+@requires_dolfinx
+def test_export_electrode_markers_to_vtx(tmp_path):
+    pytest.importorskip("dolfinx")
+    from dolfinx import io
+
+    if not hasattr(io, "VTXWriter"):
+        pytest.skip("dolfinx.io.VTXWriter is unavailable")
+
+    from fem import NeumannPoissonSolver
+    from forward import export_electrode_markers_to_vtx
+
+    problem = NeumannPoissonSolver(single_tetra_mesh(), pc_type="none", test_nullspace=True)
+    try:
+        try:
+            path = export_electrode_markers_to_vtx(problem, two_electrodes(), tmp_path / "electrodes.bp")
+        except RuntimeError as exc:
+            pytest.skip(f"VTXWriter/ADIOS2 runtime is unavailable: {exc}")
+        except ImportError as exc:
+            pytest.skip(str(exc))
+
+        assert path.exists()
+        assert path.suffix == ".bp"
+    finally:
+        problem.destroy()
+
+
 def test_export_rejects_non_dolfinx_function(tmp_path):
     from forward import export_potential_to_xdmf
 

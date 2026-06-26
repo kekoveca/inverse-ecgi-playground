@@ -86,6 +86,28 @@ from forward import export_dolfinx_function_to_vtx
 export_dolfinx_function_to_vtx(rhs, "output/rhs.bp", name="rhs")
 ```
 
+### Electrode marker export
+
+For ParaView placement checks, `forward` can export electrodes as a diagnostic
+P1 nodal marker field:
+
+```python
+from forward import export_electrode_markers_to_vtx
+
+export_electrode_markers_to_vtx(
+    solver,
+    electrodes,
+    "output/electrodes.bp",
+    value_mode="index",
+)
+```
+
+`value_mode="index"` writes marker values `1, 2, ...` for electrodes
+`E1, E2, ...`; `value_mode="binary"` writes `1` for every electrode.
+The marker is placed at the nearest FEM dof, not at an independent point-cloud
+coordinate. Use `inspect_electrode_marker_mapping(...)` to inspect nearest dof
+ids, distances and collisions.
+
 ### XDMF
 
 ```python

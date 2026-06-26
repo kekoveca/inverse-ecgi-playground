@@ -88,6 +88,23 @@ python3 main.py --position 0 0 0 --moment 0 0 1
 
 Результаты записываются в `output/`.
 
+## Full inverse experiment example
+
+Полный tutorial-script для цепочки `torso.msh -> forward -> GreenTransferMatrix -> inverse -> report/export` находится в [`examples/full_inverse_experiment_torso.py`](examples/full_inverse_experiment_torso.py).
+
+```bash
+python3 examples/full_inverse_experiment_torso.py \
+  --mesh torso.msh \
+  --output output/full_inverse_experiment \
+  --num-electrodes 32 \
+  --num-candidates 50 \
+  --moment 0 0 1 \
+  --snr-db 40 \
+  --lambda-reg 1e-10
+```
+
+Электроды выбираются на surface mesh и проходят через существующий API центральной проекции `central_project_electrodes_to_surface`. Пример также экспортирует `electrodes.bp` — диагностический marker field ближайших FEM DOF к электродам. Подробности и список output-файлов: [examples/README.md](examples/README.md).
+
 ## Testing
 
 Основной набор тестов:

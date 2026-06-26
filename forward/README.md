@@ -78,6 +78,16 @@ export_forward_result_to_vtx(result, "output/potential.bp")
 
 Для VTX export открывайте в ParaView `.bp` output.
 
+Для проверки размещения электродов можно экспортировать диагностический marker field:
+
+```python
+from forward import export_electrode_markers_to_vtx
+
+export_electrode_markers_to_vtx(solver, electrodes, "output/electrodes.bp")
+```
+
+`electrodes.bp` отмечает ближайшие FEM DOF к координатам электродов; это не отдельное point-cloud представление.
+
 Для чистой задачи Неймана потенциал определен с точностью до константы. `fem` фиксирует gauge решения, а `average` reference дополнительно убирает произвольную константу из электродных измерений.
 
 Знак RHS задается в `sources` как `gradients_p1_tetra(vertices) @ moment` и будет окончательно проверяться через Green consistency.

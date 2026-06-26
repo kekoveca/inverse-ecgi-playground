@@ -122,6 +122,33 @@ op = build_measurement_operator(
 print(op.metadata["electrode_projection"])
 ```
 
+## Checking electrode placement in ParaView
+
+The full inverse example exports `electrodes.bp`, a diagnostic scalar field on
+the FEM mesh. It marks the nearest DOLFINx dof to each electrode position:
+
+```python
+from forward import export_electrode_markers_to_vtx, inspect_electrode_marker_mapping
+
+info = inspect_electrode_marker_mapping(solver, electrodes)
+print(info["num_unique_dofs"])
+print(info["num_collisions"])
+print(info["max_distance"])
+
+export_electrode_markers_to_vtx(
+    solver,
+    electrodes,
+    "output/electrodes.bp",
+    value_mode="index",
+)
+```
+
+Open `potential.bp`, `source_marker.bp` and `electrodes.bp` together in
+ParaView. Marker values `1, 2, 3, ...` correspond to electrode index + 1. This
+is not an exact point cloud: if an electrode lies between mesh nodes, the marker
+appears at the nearest dof. For exact coordinates and distances, inspect
+`electrode_marker_mapping.csv`.
+
 ## Solver diagnostics
 
 ```python
