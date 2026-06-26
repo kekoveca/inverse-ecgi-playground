@@ -110,6 +110,18 @@ print(placement.max_distance_to_nearest_node)
 
 Также проверьте `MeasurementOperator.electrode_cell_ids` и `electrode_barycentric`. Электроды должны лежать внутри выбранной volume mesh либо быть предварительно спроецированы в допустимую область.
 
+Если электроды находятся вне volume mesh, `build_measurement_operator` по умолчанию делает центральную проекцию на `surface_mesh` или на boundary, извлеченный из tetra mesh:
+
+```python
+op = build_measurement_operator(
+    torso_geometry.volume_mesh,
+    torso_geometry.electrodes,
+    surface_mesh=torso_geometry.surface_mesh,
+)
+
+print(op.metadata["electrode_projection"])
+```
+
 ## Solver diagnostics
 
 ```python

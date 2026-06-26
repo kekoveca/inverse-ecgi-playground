@@ -15,7 +15,7 @@ The main architectural risks are not conceptual; they are scale and semantics ri
 - DOLFINx mapping is now cached on the solver, but it remains serial/MVP and will not scale to MPI without a dedicated ownership-aware mapping layer.
 - Some public names still hide ordering semantics (`cell_id`, `candidate_cell_ids`), though `ForwardResult` now records potential ordering explicitly.
 - Green transfer matrices now carry measurement row ids, but benchmark/provenance metadata is not yet strong enough to prevent stale-cache mismatches.
-- Real torso workflows need stronger provenance, electrode projection, GreenTransferMatrix cache validation and ambiguity diagnostics.
+- Real torso workflows need stronger provenance, projection-quality review, GreenTransferMatrix cache validation and ambiguity diagnostics.
 
 No large refactor was performed in this pass. The originally high-severity ordering/API issues were addressed with small compatibility-preserving changes; remaining items are medium/roadmap risks.
 
@@ -128,7 +128,7 @@ Good:
 Risks:
 
 - `reference="none"` is valid for forward measurements but incompatible with pure-Neumann Green RHS rows.
-- Real electrodes may lie slightly outside a volume mesh; no projection/snapping workflow exists.
+- Real electrodes may lie slightly outside a volume mesh; central projection to a surface is available, but real workflows may still need projection-distance QC and alternative projection modes.
 - `MeasurementOperator.matrix()` recomputes `R @ P` each call. With scipy sparse this is tolerable for now, but large repeated Green setup should cache `M`.
 
 ### forward
@@ -293,7 +293,7 @@ Potential future helpers:
 | Geometry import/tags | field_data conversion, MeshData, SourceRegion, TorsoGeometry | real small `.msh` fixture with physical groups | Medium |
 | FEM/nullspace | unit mocks, DOLFINx integration, manufactured convergence | MPI/distributed run | Medium |
 | Sources | tetra geometry, numpy RHS, PETSc RHS localization, source location diagnostics, facet/edge/vertex flags | source-region filtering that avoids facets | Medium |
-| Measurements | interpolation, references, constant invariance, sparse/dense | electrode projection from surface/outside volume | Medium |
+| Measurements | interpolation, references, constant invariance, sparse/dense, central projection for outside electrodes | surface-normal/nearest-surface projection alternatives | Low |
 | Forward | result/export, DOLFINx solve, convergence, linearity/scaling | larger realistic geometry smoke | Medium |
 | Green | compatibility, RHS mapping, gradient, cache, row-indexed transfer matrices, forward/Green consistency | stronger transfer provenance validation | Medium |
 | Inverse | LS, sign use, metrics, forward/Green/inverse consistency | ambiguity/tie/rank-deficiency diagnostics | Medium |
@@ -347,7 +347,7 @@ The project is ready for small-to-medium serial single-dipole experiments with s
 - transfer provenance validation;
 - MPI-aware node/dof mapping and cached candidate/cell mappings;
 - transfer matrix cache policy;
-- electrode projection/quality reports;
+- projection-quality reports and review thresholds;
 - grouped inverse benchmark orchestration;
 - ambiguity/rank diagnostics for inverse candidates;
 - reproducible solver option metadata.
@@ -375,7 +375,7 @@ No unresolved high-severity item remains in `architecture_review_issues.json`; t
 2. Add GreenTransferMatrix provenance schema and validation.
 3. Add inverse ambiguity metrics: second-best gap, rank, condition thresholds.
 4. Add inverse benchmark grouping by electrode set/reference/transfer id.
-5. Add electrode projection/surface snapping workflow.
+5. Add projection-distance QC thresholds and optional nearest-surface/surface-normal projection modes.
 6. Add context-manager support for solvers.
 
 ### Low
@@ -419,4 +419,4 @@ No mathematical sign convention was changed.
 3. Should `GreenTransferMatrix.candidate_cell_ids` remain DOLFINx cell ids, or should it carry both MeshData and DOLFINx ids?
 4. How large are expected source regions and electrode sets in the first benchmark paper/experiment?
 5. Should inverse benchmark compare clean/noisy observations for multiple `lambda_reg` values in one scenario?
-6. Do real electrodes need projection to a surface mesh before volume interpolation?
+6. Is central projection sufficient for real registered electrodes, or should nearest-surface/surface-normal projection be preferred?

@@ -91,6 +91,8 @@ electrodes = ElectrodeSet(
 
 Для первичной проверки размещения доступен `electrode_placement_report(electrodes, mesh)`, который измеряет расстояния до ближайших mesh nodes.
 
+Если электроды заданы немного вне volume mesh, модуль `measurements` умеет центрально проецировать их на surface mesh перед построением measurement operator. Эта операция не меняет исходный `ElectrodeSet` внутри `TorsoGeometry`; спроецированные позиции и report хранятся в `MeasurementOperator.metadata["electrode_projection"]`.
+
 ## SourceRegion
 
 `SourceRegion` хранит:

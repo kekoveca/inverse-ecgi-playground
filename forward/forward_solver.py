@@ -55,6 +55,7 @@ class ForwardSolver:
                 reference_index=reference_index,
                 sparse=measurement_sparse,
                 tol=tol,
+                surface_mesh=getattr(self.poisson_solver, "surface_mesh", None),
             )
         self.measurement_operator = measurement_operator
 

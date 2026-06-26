@@ -155,6 +155,8 @@ class FEMProblem:
         self.fem_petsc = fx["fem_petsc"]
         self.ufl = fx["ufl"]
 
+        self.geometry = mesh if isinstance(mesh, TorsoGeometry) else None
+        self.surface_mesh = mesh.surface_mesh if isinstance(mesh, TorsoGeometry) else None
         if isinstance(mesh, TorsoGeometry):
             mesh_data = mesh.volume_mesh
         else:

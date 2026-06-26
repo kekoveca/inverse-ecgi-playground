@@ -6,7 +6,9 @@ from measurements import (
     apply_reference,
     build_measurement_operator,
     build_point_interpolation_matrix,
+    central_project_electrodes_to_surface,
     evaluate_at_points,
+    locate_electrodes_in_mesh,
     locate_points_in_tetra_mesh,
     measure_nodal_values,
     measure_raw_nodal_values,
@@ -48,6 +50,37 @@ def test_locate_points_in_tetra_mesh_rejects_outside_point():
 
     with pytest.raises(ValueError, match="point 0"):
         locate_points_in_tetra_mesh(mesh, np.array([[2.0, 0.0, 0.0]]))
+
+
+def test_central_project_electrodes_to_inferred_surface():
+    mesh = single_tetra_mesh()
+    electrodes = ElectrodeSet(positions=np.array([[2.0, 0.0, 0.0], [0.25, 0.25, 0.25]]))
+
+    projected, report = central_project_electrodes_to_surface(mesh, electrodes)
+
+    assert report.num_projected == 1
+    assert np.array_equal(report.projected_indices, [0])
+    assert np.allclose(projected.positions[0], [0.6, 0.2, 0.2])
+    assert np.allclose(projected.positions[1], electrodes.positions[1])
+    assert projected.metadata["projection"]["num_projected"] == 1
+
+
+def test_locate_electrodes_can_project_outside_positions():
+    mesh = single_tetra_mesh()
+    electrodes = ElectrodeSet(positions=np.array([[2.0, 0.0, 0.0]]), labels=["outside"])
+
+    cell_ids, barycentric, projected, report = locate_electrodes_in_mesh(
+        mesh,
+        electrodes,
+        project_outside=True,
+        return_projection=True,
+    )
+
+    assert np.array_equal(cell_ids, [0])
+    assert np.allclose(projected.positions[0], [0.6, 0.2, 0.2])
+    assert np.allclose(barycentric[0], [0.0, 0.6, 0.2, 0.2], atol=1e-12)
+    assert report is not None
+    assert report.num_projected == 1
 
 
 def test_build_point_interpolation_matrix_dense():
@@ -127,6 +160,19 @@ def test_measurement_operator_evaluates_raw_and_referenced_values():
     assert op.num_electrodes == 2
     assert op.num_nodes == 4
     assert op.labels == ["E1", "E2"]
+
+
+def test_measurement_operator_projects_outside_electrodes_by_default():
+    mesh = single_tetra_mesh()
+    electrodes = ElectrodeSet(positions=np.array([[2.0, 0.0, 0.0]]), labels=["outside"])
+    nodal_values = np.array([0.0, 1.0, 2.0, 3.0])
+
+    op = build_measurement_operator(mesh, electrodes, reference="none", sparse=False)
+
+    assert np.allclose(op.electrode_barycentric[0], [0.0, 0.6, 0.2, 0.2], atol=1e-12)
+    assert op.evaluate_raw(nodal_values) == pytest.approx([1.6])
+    assert op.metadata["electrode_projection"]["num_projected"] == 1
+    assert op.metadata["electrode_projection"]["projected_indices"] == [0]
 
 
 def test_average_referenced_constant_function_is_zero():

@@ -74,17 +74,31 @@ def build_measurement_operator(
     reference_index: int | None = None,
     sparse: bool = True,
     tol: float = 1e-10,
+    *,
+    project_outside_electrodes: bool = True,
+    surface_mesh: MeshData | None = None,
+    projection_center=None,
 ) -> MeasurementOperator:
     """Locate electrodes and build ``P``, ``R`` and ``M = R @ P``.
 
     The returned operator stores electrode MeshData cell ids and barycentric
     coordinates for diagnostics. Sparse matrices are used when requested and
-    scipy is available.
+    scipy is available. By default, electrodes outside the volume are centrally
+    projected onto the supplied surface mesh or inferred tetra boundary before
+    interpolation.
     """
-    cell_ids, barycentric = locate_electrodes_in_mesh(mesh, electrodes, tol=tol)
+    cell_ids, barycentric, located_electrodes, projection_report = locate_electrodes_in_mesh(
+        mesh,
+        electrodes,
+        tol=tol,
+        project_outside=project_outside_electrodes,
+        surface_mesh=surface_mesh,
+        projection_center=projection_center,
+        return_projection=True,
+    )
     interpolation_matrix = build_point_interpolation_matrix(
         mesh,
-        electrodes.positions,
+        located_electrodes.positions,
         cell_ids=cell_ids,
         barycentric=barycentric,
         sparse=sparse,
@@ -108,5 +122,8 @@ def build_measurement_operator(
             "mesh_name": mesh.name,
             "electrode_set": electrodes.name,
             "ordering": "meshdata_node",
+            "electrode_projection": None
+            if projection_report is None
+            else projection_report.to_summary_dict(),
         },
     )

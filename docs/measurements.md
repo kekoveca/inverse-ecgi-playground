@@ -14,10 +14,26 @@ nodal values u -> raw electrode values y_raw -> referenced values g
 
 - `locate_points_in_tetra_mesh(mesh, points)` возвращает MeshData cell ids и barycentric coordinates.
 - `locate_electrodes_in_mesh(mesh, electrodes)` применяет тот же алгоритм к `ElectrodeSet.positions`.
+- `central_project_electrodes_to_surface(...)` центрально проецирует внешние электроды на surface mesh или на boundary, извлеченный из tetra volume mesh.
 
 Геометрия тетраэдра переиспользуется из `sources`; отдельной копии barycentric math в `measurements` нет.
 
 Возвращаемые cell ids принадлежат MeshData ordering.
+
+`locate_points_in_tetra_mesh` остается строгим и выбрасывает `ValueError` для точек вне volume mesh. Для электродов доменная логика мягче: `build_measurement_operator` по умолчанию вызывает центральную проекцию для электродов, которые не лежат внутри торса. Проекция строит луч от центра volume mesh через внешний электрод и берет первое пересечение с surface mesh. Если `surface_mesh` не передан, boundary triangles извлекаются из tetra mesh.
+
+```python
+from measurements import central_project_electrodes_to_surface
+
+projected_electrodes, report = central_project_electrodes_to_surface(
+    volume_mesh=volume_mesh,
+    electrodes=electrodes,
+    surface_mesh=surface_mesh,  # optional
+)
+
+print(report.projected_indices)
+print(report.max_projection_distance)
+```
 
 ## Interpolation matrix
 
@@ -77,6 +93,7 @@ op = build_measurement_operator(
     electrodes=electrodes,
     reference="average",
     sparse=True,
+    surface_mesh=surface_mesh,  # optional
 )
 
 y_raw = op.evaluate_raw(nodal_values)
@@ -93,6 +110,8 @@ M = op.matrix()
 - `evaluate()` — referenced values.
 
 Строки `M` используются как RHS vectors в модуле `green`: `K G_i = M_i^T`. Перед записью в DOLFINx Function они отображаются из MeshData node ordering в DOLFINx DOF ordering.
+
+Если электроды были спроецированы, summary доступен в `op.metadata["electrode_projection"]`.
 
 ## Constant potential test
 

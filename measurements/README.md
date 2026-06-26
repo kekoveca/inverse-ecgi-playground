@@ -78,3 +78,19 @@ M = op.matrix()
 - `"none"`: без изменения значений;
 - `"average"`: вычитание среднего по электродам;
 - `"single"`: вычитание значения выбранного электрода `reference_index`.
+
+## Электроды вне volume mesh
+
+`build_measurement_operator` по умолчанию проверяет электроды и центрально проецирует те, которые лежат вне торса, на поверхность:
+
+```python
+op = build_measurement_operator(
+    mesh=volume_mesh,
+    electrodes=electrodes,
+    surface_mesh=surface_mesh,  # optional
+)
+
+print(op.metadata["electrode_projection"])
+```
+
+Если `surface_mesh` не передан, boundary triangles извлекаются из tetra volume mesh. Проекция идет от центра volume mesh через внешний электрод к первому пересечению с поверхностью.

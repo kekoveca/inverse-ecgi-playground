@@ -111,12 +111,12 @@
   },
   {
     "id": "ARCH-012",
-    "severity": "medium",
+    "severity": "info",
     "category": "measurements",
     "module": "measurements/geometry",
-    "title": "Electrodes must be inside the tetra mesh; no projection workflow exists",
-    "description": "locate_electrodes_in_mesh requires electrode positions to be inside or on a tetrahedron. Real torso electrodes are often on a surface, slightly outside due to registration/projection error, or represented on a separate surface mesh.",
-    "recommendation": "Add explicit electrode projection/validation workflow: nearest surface point, tolerance report, and optional snapping before building MeasurementOperator.",
+    "title": "Outside electrodes are centrally projected before measurements",
+    "description": "Fixed: build_measurement_operator now centrally projects electrodes outside the tetra volume onto a supplied surface mesh or an inferred tetra boundary, and stores an electrode_projection summary in metadata. Direct point location remains strict for non-electrode points.",
+    "recommendation": "For real torso studies, review projection distances and consider adding surface-normal or nearest-surface projection modes if central projection is not appropriate for a registration workflow.",
     "requires_behavior_change": false
   },
   {

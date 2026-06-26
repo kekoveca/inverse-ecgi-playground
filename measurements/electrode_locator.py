@@ -6,6 +6,8 @@ from geometry import ElectrodeSet, MeshData
 from sources import barycentric_coordinates_tetra
 from sources import locate_points_in_mesh as _locate_points_in_mesh
 
+from .electrode_projection import ElectrodeProjectionReport, central_project_electrodes_to_surface
+
 
 def _as_points(points) -> np.ndarray:
     points = np.asarray(points, dtype=float)
@@ -60,8 +62,31 @@ def locate_electrodes_in_mesh(
     mesh: MeshData,
     electrodes: ElectrodeSet,
     tol: float = 1e-10,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Locate electrode positions in a tetrahedral volume mesh."""
+    *,
+    project_outside: bool = False,
+    surface_mesh: MeshData | None = None,
+    projection_center=None,
+    return_projection: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, ElectrodeSet, ElectrodeProjectionReport | None]:
+    """Locate electrode positions in a tetrahedral volume mesh.
+
+    When ``project_outside=True``, electrodes outside the volume are centrally
+    projected onto ``surface_mesh`` (or the inferred volume boundary) before
+    location. The default stays strict for backward compatibility.
+    """
     if electrodes.geometric_dim != mesh.geometric_dim:
         raise ValueError("mesh and electrodes must have the same geometric dimension")
-    return locate_points_in_tetra_mesh(mesh, electrodes.positions, tol=tol)
+    projection_report = None
+    located_electrodes = electrodes
+    if project_outside:
+        located_electrodes, projection_report = central_project_electrodes_to_surface(
+            volume_mesh=mesh,
+            electrodes=electrodes,
+            surface_mesh=surface_mesh,
+            center=projection_center,
+            tol=tol,
+        )
+    cell_ids, barycentric = locate_points_in_tetra_mesh(mesh, located_electrodes.positions, tol=tol)
+    if return_projection:
+        return cell_ids, barycentric, located_electrodes, projection_report
+    return cell_ids, barycentric
