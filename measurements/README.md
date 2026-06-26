@@ -94,3 +94,10 @@ print(op.metadata["electrode_projection"])
 ```
 
 Если `surface_mesh` не передан, boundary triangles извлекаются из tetra volume mesh. Проекция идет от центра volume mesh через внешний электрод к первому пересечению с поверхностью.
+
+Для больших сеток projection использует production locator objects:
+
+- `TetraVolumeLocator` кэширует bbox, tetra centroids и `cKDTree` для repeated inside checks;
+- `CentralSurfaceProjector` кэширует surface triangles для центральной проекции.
+
+Их можно передать в `central_project_electrodes_to_surface(...)` явно, если несколько наборов электродов проецируются на одну геометрию.

@@ -599,9 +599,8 @@ def safe_vtx_export(description: str, callback, export_errors: list[str]) -> Non
         print(f"WARNING: {message}")
 
 
-def main() -> int:
-    # 1. Parse arguments
-    args = parse_args()
+def run_full_inverse_experiment(args: argparse.Namespace, electrode_builder=build_demo_surface_electrodes) -> int:
+    """Run the full tutorial pipeline with a configurable electrode builder."""
     require_dolfinx_runtime()
     mesh_path = Path(args.mesh)
     output_dir = Path(args.output)
@@ -612,7 +611,7 @@ def main() -> int:
     mesh_summary = mesh_diagnostics_summary(volume_mesh, surface_mesh)
 
     # 3. Build/project electrodes on torso surface
-    electrodes, electrode_projection_summary, electrode_surface_diagnostics = build_demo_surface_electrodes(
+    electrodes, electrode_projection_summary, electrode_surface_diagnostics = electrode_builder(
         volume_mesh=volume_mesh,
         surface_mesh=surface_mesh,
         num_electrodes=args.num_electrodes,
@@ -909,6 +908,11 @@ def main() -> int:
         solver.destroy()
 
     return 0
+
+
+def main() -> int:
+    # 1. Parse arguments
+    return run_full_inverse_experiment(parse_args())
 
 
 if __name__ == "__main__":

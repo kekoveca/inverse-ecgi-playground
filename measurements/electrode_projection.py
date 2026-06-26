@@ -4,9 +4,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from geometry import ElectrodeSet, MeshData
-from sources import locate_points_in_mesh
+from sources import point_in_tetra
 
 
 @dataclass(frozen=True)
@@ -115,12 +116,144 @@ def _surface_mesh(surface_mesh: MeshData | None, volume_mesh: MeshData) -> MeshD
     return surface_mesh
 
 
+class TetraVolumeLocator:
+    """Cached inside/containing-cell locator for a tetrahedral ``MeshData``.
+
+    The locator owns bbox data, tetra vertices, centroids and one cKDTree. It is
+    intended for repeated point-in-volume checks where rebuilding the tree per
+    point would dominate runtime.
+    """
+
+    def __init__(self, mesh: MeshData, tol: float = 1e-10, initial_k: int = 8) -> None:
+        _validate_volume_mesh(mesh)
+        if initial_k < 1:
+            raise ValueError("initial_k must be positive")
+        self.mesh = mesh
+        self.tol = float(tol)
+        self.initial_k = int(initial_k)
+        self.cell_ids = np.arange(mesh.num_cells, dtype=np.int64)
+        self.vertices = mesh.points[mesh.cells]
+        self.centroids = self.vertices.mean(axis=1)
+        self.tree = cKDTree(self.centroids)
+        self.bbox_min, self.bbox_max = mesh.bounding_box()
+
+    def _as_points(self, points) -> np.ndarray:
+        points = np.asarray(points, dtype=float)
+        if points.ndim == 1:
+            points = points.reshape(1, -1)
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError(f"points must have shape (n_points, 3), got {points.shape}")
+        if not np.all(np.isfinite(points)):
+            raise ValueError("points must contain only finite values")
+        return points
+
+    def locate_points(self, points) -> np.ndarray:
+        """Return containing cell ids or ``-1`` for points outside the volume."""
+        points = self._as_points(points)
+        located = np.full(points.shape[0], -1, dtype=np.int64)
+        if points.shape[0] == 0 or self.cell_ids.size == 0:
+            return located
+
+        bbox_tol = self.tol
+        inside_bbox = np.all(points >= self.bbox_min - bbox_tol, axis=1) & np.all(
+            points <= self.bbox_max + bbox_tol,
+            axis=1,
+        )
+        if not np.any(inside_bbox):
+            return located
+
+        unresolved = np.flatnonzero(inside_bbox)
+        k = min(self.initial_k, self.cell_ids.size)
+        while unresolved.size > 0:
+            _, local_indices = self.tree.query(points[unresolved], k=k)
+            if k == 1:
+                local_indices = local_indices[:, np.newaxis]
+
+            still_unresolved: list[int] = []
+            for row, point_id in enumerate(unresolved):
+                point = points[point_id]
+                for local_cell_id in np.atleast_1d(local_indices[row]):
+                    cell_id = int(self.cell_ids[int(local_cell_id)])
+                    if point_in_tetra(point, self.vertices[cell_id], tol=self.tol):
+                        located[point_id] = cell_id
+                        break
+                if located[point_id] < 0:
+                    still_unresolved.append(int(point_id))
+
+            if not still_unresolved or k == self.cell_ids.size:
+                break
+            unresolved = np.asarray(still_unresolved, dtype=np.int64)
+            k = min(2 * k, self.cell_ids.size)
+
+        return located
+
+    def contains_points(self, points) -> np.ndarray:
+        """Return a boolean mask for points inside or on the tetra volume."""
+        return self.locate_points(points) >= 0
+
+    def contains_point(self, point) -> bool:
+        """Return whether one point is inside or on the tetra volume."""
+        return bool(self.contains_points(np.asarray(point, dtype=float).reshape(1, 3))[0])
+
+
+class CentralSurfaceProjector:
+    """Cached central ray projector onto a triangular surface mesh."""
+
+    def __init__(self, surface_mesh: MeshData, center, tol: float = 1e-10) -> None:
+        if surface_mesh.cell_type != "triangle" or surface_mesh.geometric_dim != 3:
+            raise ValueError("surface_mesh must be a 3D triangle MeshData")
+        center = np.asarray(center, dtype=float)
+        if center.shape != (3,) or not np.all(np.isfinite(center)):
+            raise ValueError("projection center must have shape (3,) and contain finite values")
+        self.surface_mesh = surface_mesh
+        self.center = center
+        self.tol = float(tol)
+        self.triangles = np.asarray(surface_mesh.points[surface_mesh.cells], dtype=float)
+        if self.triangles.size == 0:
+            raise ValueError("surface_mesh must contain at least one triangle")
+
+    def project_point(self, point) -> tuple[np.ndarray, int]:
+        """Project one point from ``center`` to the first surface hit."""
+        point = np.asarray(point, dtype=float)
+        if point.shape != (3,):
+            raise ValueError("point must have shape (3,)")
+        if not np.all(np.isfinite(point)):
+            raise ValueError("point must contain only finite values")
+
+        direction = point - self.center
+        direction_norm = float(np.linalg.norm(direction))
+        if direction_norm <= self.tol:
+            raise ValueError("cannot centrally project an electrode located at the projection center")
+
+        best_t = None
+        best_cell_id = None
+        for cell_id, triangle in enumerate(self.triangles):
+            ray_t = _ray_triangle_intersection(self.center, direction, triangle, tol=self.tol)
+            if ray_t is None:
+                continue
+            if best_t is None or ray_t < best_t:
+                best_t = float(ray_t)
+                best_cell_id = int(cell_id)
+        if best_t is None or best_cell_id is None:
+            raise ValueError(
+                f"central projection ray from {self.center.tolist()} through {point.tolist()} missed the surface"
+            )
+        return self.center + best_t * direction, best_cell_id
+
+    def project_points(self, points) -> tuple[np.ndarray, np.ndarray]:
+        """Project multiple points and return projected positions plus cell ids."""
+        points = np.asarray(points, dtype=float)
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError(f"points must have shape (n_points, 3), got {points.shape}")
+        projected = np.zeros_like(points)
+        surface_cell_ids = np.full(points.shape[0], -1, dtype=np.int64)
+        for point_id, point in enumerate(points):
+            projected[point_id], surface_cell_ids[point_id] = self.project_point(point)
+        return projected, surface_cell_ids
+
+
 def _is_inside_volume(mesh: MeshData, point: np.ndarray, tol: float) -> bool:
-    try:
-        locate_points_in_mesh(mesh, point.reshape(1, 3), tol=tol)
-    except ValueError:
-        return False
-    return True
+    return TetraVolumeLocator(mesh, tol=tol).contains_point(point)
 
 
 def _ray_triangle_intersection(origin: np.ndarray, direction: np.ndarray, triangle: np.ndarray, tol: float) -> float | None:
@@ -153,28 +286,8 @@ def central_project_point_to_surface(
     tol: float = 1e-10,
 ) -> tuple[np.ndarray, int]:
     """Project one point from ``center`` onto the first surface hit by a ray."""
-    point = np.asarray(point, dtype=float)
-    center = np.asarray(center, dtype=float)
-    if point.shape != (3,) or center.shape != (3,):
-        raise ValueError("point and center must have shape (3,)")
-    direction = point - center
-    direction_norm = float(np.linalg.norm(direction))
-    if direction_norm <= tol:
-        raise ValueError("cannot centrally project an electrode located at the projection center")
-
-    triangles = surface_mesh.points[surface_mesh.cells]
-    best_t = None
-    best_cell_id = None
-    for cell_id, triangle in enumerate(triangles):
-        ray_t = _ray_triangle_intersection(center, direction, triangle, tol=tol)
-        if ray_t is None:
-            continue
-        if best_t is None or ray_t < best_t:
-            best_t = float(ray_t)
-            best_cell_id = int(cell_id)
-    if best_t is None or best_cell_id is None:
-        raise ValueError(f"central projection ray from {center.tolist()} through {point.tolist()} missed the surface")
-    return center + best_t * direction, best_cell_id
+    projector = CentralSurfaceProjector(surface_mesh, center=center, tol=tol)
+    return projector.project_point(point)
 
 
 def central_project_electrodes_to_surface(
@@ -183,13 +296,19 @@ def central_project_electrodes_to_surface(
     surface_mesh: MeshData | None = None,
     center=None,
     tol: float = 1e-10,
+    *,
+    project_only_outside: bool = True,
+    volume_locator: TetraVolumeLocator | None = None,
+    surface_projector: CentralSurfaceProjector | None = None,
 ) -> tuple[ElectrodeSet, ElectrodeProjectionReport]:
     """Project electrodes outside a tetra volume onto the torso surface.
 
-    Electrodes already inside or on the volume mesh are left unchanged. Outside
-    electrodes are projected along the ray from ``center`` through the electrode
-    to the first triangle of ``surface_mesh``. If no surface is supplied, the
-    boundary triangles are inferred from the tetra volume mesh.
+    By default, electrodes already inside or on the volume mesh are left
+    unchanged. Outside electrodes are projected along the ray from ``center``
+    through the electrode to the first triangle of ``surface_mesh``. If no
+    surface is supplied, the boundary triangles are inferred from the tetra
+    volume mesh. Locator/projector objects may be supplied to reuse cached
+    spatial data across calls.
     """
     _validate_volume_mesh(volume_mesh)
     if electrodes.geometric_dim != volume_mesh.geometric_dim:
@@ -200,21 +319,33 @@ def central_project_electrodes_to_surface(
     center = np.asarray(center, dtype=float)
     if center.shape != (3,) or not np.all(np.isfinite(center)):
         raise ValueError("projection center must have shape (3,) and contain finite values")
+    if volume_locator is not None and volume_locator.mesh is not volume_mesh:
+        raise ValueError("volume_locator must be built from the same volume_mesh object")
+    if surface_projector is not None and surface_projector.surface_mesh is not surface:
+        raise ValueError("surface_projector must be built from the same surface_mesh object")
+    if surface_projector is not None and not np.allclose(surface_projector.center, center):
+        raise ValueError("surface_projector center does not match requested projection center")
+
+    if project_only_outside and volume_locator is None:
+        volume_locator = TetraVolumeLocator(volume_mesh, tol=tol)
+    if surface_projector is None:
+        surface_projector = CentralSurfaceProjector(surface, center=center, tol=tol)
 
     projected_positions = electrodes.positions.copy()
     projected_mask = np.zeros(electrodes.num_electrodes, dtype=bool)
     projection_distances = np.zeros(electrodes.num_electrodes, dtype=float)
     surface_cell_ids = np.full(electrodes.num_electrodes, -1, dtype=np.int64)
 
+    if project_only_outside:
+        assert volume_locator is not None
+        inside_mask = volume_locator.contains_points(electrodes.positions)
+    else:
+        inside_mask = np.zeros(electrodes.num_electrodes, dtype=bool)
+
     for electrode_id, position in enumerate(electrodes.positions):
-        if _is_inside_volume(volume_mesh, position, tol=tol):
+        if inside_mask[electrode_id]:
             continue
-        projected, surface_cell_id = central_project_point_to_surface(
-            position,
-            surface,
-            center,
-            tol=tol,
-        )
+        projected, surface_cell_id = surface_projector.project_point(position)
         projected_positions[electrode_id] = projected
         projected_mask[electrode_id] = True
         projection_distances[electrode_id] = float(np.linalg.norm(position - projected))
@@ -223,7 +354,9 @@ def central_project_electrodes_to_surface(
     metadata = {
         "projection": "central",
         "surface_mesh": surface.name,
-        "only_outside_electrodes": True,
+        "only_outside_electrodes": bool(project_only_outside),
+        "volume_locator": None if not project_only_outside else "TetraVolumeLocator",
+        "surface_projector": "CentralSurfaceProjector",
     }
     report = ElectrodeProjectionReport(
         original_positions=electrodes.positions,

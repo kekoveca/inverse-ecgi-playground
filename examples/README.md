@@ -86,3 +86,44 @@ usually expected when `only_outside_electrodes=True` and the selected electrode
 was already on or inside the volume. The separate `nearest_surface_cell_id` is
 computed for every electrode by the example and saved in
 `electrode_surface_diagnostics.csv`.
+
+## Full inverse experiment with clipped-sphere electrodes
+
+`full_inverse_experiment_torso_clipped_sphere_electrodes.py` runs the same
+end-to-end pipeline, but builds electrodes from an outer sphere before
+projection:
+
+1. create a sphere centered at the geometry bbox center and large enough to
+   contain the whole bbox;
+2. clip that sphere between two Z planes: bbox `z_min` and `z_max` moved 10%
+   toward the bbox center;
+3. place `num_electrodes` quasi-uniformly on the remaining spherical band with
+   a golden-angle sequence;
+4. centrally project those outside points to the torso surface with the
+   existing `central_project_electrodes_to_surface` API.
+
+Run:
+
+```bash
+python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
+  --mesh torso.msh \
+  --output output/full_inverse_experiment_clipped_sphere \
+  --num-electrodes 32 \
+  --num-candidates 50 \
+  --moment 0 0 1 \
+  --lambda-reg 1e-10
+```
+
+For a fast no-export smoke run:
+
+```bash
+python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
+  --mesh torso.msh \
+  --output output/full_inverse_experiment_clipped_sphere_smoke \
+  --num-electrodes 8 \
+  --num-candidates 5 \
+  --no-export
+```
+
+The `--z-trim-fraction` option defaults to `0.1`, matching the 10% inward shift
+of the clipping planes.

@@ -3,7 +3,9 @@ import pytest
 
 from geometry import ElectrodeSet, MeshData
 from measurements import (
+    CentralSurfaceProjector,
     apply_reference,
+    boundary_triangle_mesh_from_tetra_mesh,
     build_measurement_operator,
     build_point_interpolation_matrix,
     central_project_electrodes_to_surface,
@@ -12,6 +14,7 @@ from measurements import (
     locate_points_in_tetra_mesh,
     measure_nodal_values,
     measure_raw_nodal_values,
+    TetraVolumeLocator,
 )
 
 
@@ -63,6 +66,66 @@ def test_central_project_electrodes_to_inferred_surface():
     assert np.allclose(projected.positions[0], [0.6, 0.2, 0.2])
     assert np.allclose(projected.positions[1], electrodes.positions[1])
     assert projected.metadata["projection"]["num_projected"] == 1
+
+
+def test_tetra_volume_locator_contains_points_and_marks_outside():
+    mesh = single_tetra_mesh()
+    locator = TetraVolumeLocator(mesh)
+    points = np.array(
+        [
+            [0.25, 0.25, 0.25],
+            [2.0, 0.0, 0.0],
+        ]
+    )
+
+    cell_ids = locator.locate_points(points)
+
+    assert np.array_equal(cell_ids, [0, -1])
+    assert np.array_equal(locator.contains_points(points), [True, False])
+
+
+def test_central_surface_projector_projects_point():
+    mesh = single_tetra_mesh()
+    surface = boundary_triangle_mesh_from_tetra_mesh(mesh)
+    projector = CentralSurfaceProjector(surface, center=mesh.points.mean(axis=0))
+
+    projected, surface_cell_id = projector.project_point([2.0, 0.0, 0.0])
+
+    assert surface_cell_id >= 0
+    assert np.allclose(projected, [0.6, 0.2, 0.2])
+
+
+def test_central_projection_reuses_volume_locator_for_batch_inside_check():
+    mesh = single_tetra_mesh()
+    electrodes = ElectrodeSet(
+        positions=np.array(
+            [
+                [2.0, 0.0, 0.0],
+                [0.25, 0.25, 0.25],
+                [0.0, 2.0, 0.0],
+            ]
+        )
+    )
+    locator = TetraVolumeLocator(mesh)
+    calls = {"contains_points": 0}
+    original_contains_points = locator.contains_points
+
+    def counted_contains_points(points):
+        calls["contains_points"] += 1
+        return original_contains_points(points)
+
+    locator.contains_points = counted_contains_points
+
+    projected, report = central_project_electrodes_to_surface(
+        mesh,
+        electrodes,
+        volume_locator=locator,
+    )
+
+    assert calls["contains_points"] == 1
+    assert report.num_projected == 2
+    assert np.array_equal(report.projected_indices, [0, 2])
+    assert np.allclose(projected.positions[1], electrodes.positions[1])
 
 
 def test_locate_electrodes_can_project_outside_positions():

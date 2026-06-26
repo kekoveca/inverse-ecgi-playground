@@ -15,6 +15,7 @@ nodal values u -> raw electrode values y_raw -> referenced values g
 - `locate_points_in_tetra_mesh(mesh, points)` возвращает MeshData cell ids и barycentric coordinates.
 - `locate_electrodes_in_mesh(mesh, electrodes)` применяет тот же алгоритм к `ElectrodeSet.positions`.
 - `central_project_electrodes_to_surface(...)` центрально проецирует внешние электроды на surface mesh или на boundary, извлеченный из tetra volume mesh.
+- `TetraVolumeLocator` и `CentralSurfaceProjector` кэшируют spatial data для repeated inside checks и central ray projection.
 
 Геометрия тетраэдра переиспользуется из `sources`; отдельной копии barycentric math в `measurements` нет.
 
@@ -33,6 +34,26 @@ projected_electrodes, report = central_project_electrodes_to_surface(
 
 print(report.projected_indices)
 print(report.max_projection_distance)
+```
+
+Для больших meshes projection использует locator/projector objects внутри
+`central_project_electrodes_to_surface`, чтобы не строить KDTree по volume cells
+для каждого электрода отдельно. Если нужно выполнить несколько projection runs
+на одной геометрии, эти objects можно создать и передать явно:
+
+```python
+from measurements import CentralSurfaceProjector, TetraVolumeLocator
+
+volume_locator = TetraVolumeLocator(volume_mesh)
+surface_projector = CentralSurfaceProjector(surface_mesh, center=volume_mesh.points.mean(axis=0))
+
+projected_electrodes, report = central_project_electrodes_to_surface(
+    volume_mesh,
+    electrodes,
+    surface_mesh=surface_mesh,
+    volume_locator=volume_locator,
+    surface_projector=surface_projector,
+)
 ```
 
 ## Interpolation matrix

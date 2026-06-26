@@ -105,6 +105,16 @@ python3 examples/full_inverse_experiment_torso.py \
 
 Электроды выбираются на surface mesh и проходят через существующий API центральной проекции `central_project_electrodes_to_surface`. Пример также экспортирует `electrodes.bp` — диагностический marker field ближайших FEM DOF к электродам. Подробности и список output-файлов: [examples/README.md](examples/README.md).
 
+Есть второй вариант примера с электродами, сначала квазиравномерно размещёнными на отсечённой сфере вокруг bbox, а затем спроецированными на торс:
+
+```bash
+python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
+  --mesh torso.msh \
+  --output output/full_inverse_experiment_clipped_sphere \
+  --num-electrodes 32 \
+  --num-candidates 50
+```
+
 ## Testing
 
 Основной набор тестов:
