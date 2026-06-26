@@ -176,6 +176,23 @@ inverse_result = run_inverse_benchmark(
 save_inverse_benchmark_result(inverse_result, "results/inverse")
 ```
 
+## Performance profiling
+
+Лёгкий profiler полного pipeline пишет `timing.csv`, `timing.json`,
+`memory.json` и `profile_summary.md`:
+
+```bash
+python3 scripts/profile_full_inverse_experiment.py \
+  --mesh torso_refined.msh \
+  --output output/performance_profile \
+  --num-electrodes 128 \
+  --num-candidates 50 \
+  --max-green-rows 16 \
+  --no-export
+```
+
+Отчёт по bottlenecks и roadmap: [docs/performance_review.md](docs/performance_review.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -191,3 +208,4 @@ save_inverse_benchmark_result(inverse_result, "results/inverse")
 - [MeshData details](docs/mesh_data.md)
 - [Verification utilities](verification/README.md)
 - [Benchmark](docs/benchmark.md)
+- [Performance review](docs/performance_review.md)

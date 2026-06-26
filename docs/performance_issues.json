@@ -1,0 +1,101 @@
+[
+  {
+    "id": "PERF-001",
+    "severity": "critical",
+    "module": "green",
+    "title": "Green solve_all scales linearly with measurement channels",
+    "description": "GreenSolver.solve_all solves one Neumann linear system per measurement row. Runtime grows directly with electrode/reference channel count.",
+    "evidence": "green/green_solver.py loops over row_indices and calls solve_one for each row.",
+    "recommendation": "Profile per-row Green solve time, add transfer matrix caching, then evaluate parallel row solves or block RHS solving.",
+    "estimated_effort": "large",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-002",
+    "severity": "critical",
+    "module": "green",
+    "title": "DOLFINx candidate point location is not accelerated",
+    "description": "Candidate points for transfer matrix construction are located in DOLFINx cell ordering by scanning cells through the P1 dofmap helper.",
+    "evidence": "green/gradients.py uses locate_candidate_points_in_dolfinx, which calls locate_point_in_dolfinx_p1_tetra_mesh per point. A torso_refined.msh smoke profile measured build_transfer_matrix at 32.898s for only 10 candidates and 4 Green rows.",
+    "recommendation": "Introduce a reusable DOLFINx P1 tetra locator or use DOLFINx geometry/BVH APIs for candidate/source point lookup.",
+    "estimated_effort": "medium",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-003",
+    "severity": "high",
+    "module": "green",
+    "title": "Node-to-dof mapping may be rebuilt for each Green RHS row",
+    "description": "Green RHS creation maps MeshData-node ordered measurement rows to DOLFINx dof ordering. If the FEM mapping helper is not cached, this repeats coordinate matching for every measurement row.",
+    "evidence": "green/rhs.py create_function_from_meshdata_nodal_values calls build_node_to_dof_map_p1 inside each create_green_rhs_function call.",
+    "recommendation": "Cache node_to_dof maps on the solver or GreenSolver instance and reuse them across all Green RHS rows.",
+    "estimated_effort": "small",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-004",
+    "severity": "high",
+    "module": "measurements",
+    "title": "Central surface projection still loops over all surface triangles per projected electrode",
+    "description": "Cached CentralSurfaceProjector avoids repeated triangle array creation, but projection remains O(N_projected * N_surface_cells).",
+    "evidence": "measurements/electrode_projection.py CentralSurfaceProjector.project_point iterates over self.triangles.",
+    "recommendation": "Vectorize ray-triangle intersection or add a surface acceleration structure for projection rays.",
+    "estimated_effort": "medium",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-005",
+    "severity": "medium",
+    "module": "green",
+    "title": "Green functions retained in memory by default",
+    "description": "GreenSolver defaults to keep_functions=True, which stores one DOLFINx Function per measurement channel.",
+    "evidence": "green/green_solver.py appends each function when keep_functions is true; transfer construction requires retained functions.",
+    "recommendation": "Add chunked transfer construction or a keep_functions=False streaming path for large electrode/candidate runs.",
+    "estimated_effort": "large",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-006",
+    "severity": "medium",
+    "module": "benchmark",
+    "title": "Benchmark workflows rely on caller-managed caching",
+    "description": "Forward/inverse benchmark runners can repeat solver, measurement operator or transfer matrix construction when scenarios are not manually organized around shared objects.",
+    "evidence": "benchmark runners are intentionally simple and accept factories/results but do not own GreenTransferMatrix cache orchestration.",
+    "recommendation": "Add benchmark-level cache keys for geometry, electrode subsets, reference systems and GreenTransferMatrix files.",
+    "estimated_effort": "medium",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-007",
+    "severity": "medium",
+    "module": "inverse",
+    "title": "Single-dipole inverse loop is scalar over candidates",
+    "description": "Inverse search solves an independent 3-parameter LS problem per candidate in Python.",
+    "evidence": "inverse/single_dipole.py builds candidates with a Python list comprehension over candidate indices.",
+    "recommendation": "Vectorize normal-equation assembly/residual computation for large candidate grids or add a batched numpy path.",
+    "estimated_effort": "medium",
+    "behavior_change": false
+  },
+  {
+    "id": "PERF-008",
+    "severity": "low",
+    "module": "geometry",
+    "title": "Surface MeshData may keep full global point arrays",
+    "description": "Extracted surface meshes can retain the full point array from the original mesh, increasing memory and diagnostics counts.",
+    "evidence": "Example diagnostics distinguish surface point-array size from used surface vertices.",
+    "recommendation": "Consider optional compact_surface_mesh helper for export/diagnostics workflows where global ids are not needed.",
+    "estimated_effort": "small",
+    "behavior_change": true
+  },
+  {
+    "id": "PERF-009",
+    "severity": "info",
+    "module": "forward",
+    "title": "ForwardSolver already caches measurement node-to-dof map per instance",
+    "description": "Forward measurement evaluation keeps _node_to_dof_map after first solve, reducing repeated forward measurement overhead.",
+    "evidence": "forward/forward_solver.py stores self._node_to_dof_map.",
+    "recommendation": "Use this as the model for Green RHS mapping cache.",
+    "estimated_effort": "small",
+    "behavior_change": false
+  }
+]
