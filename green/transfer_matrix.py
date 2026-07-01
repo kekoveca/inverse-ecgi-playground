@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from fem import get_p1_tetra_locator
 from sources import barycentric_boundary_flags, barycentric_coordinates_tetra
 
 from .gradients import gradients_at_candidate_cells, locate_candidate_points_in_dolfinx
@@ -78,18 +79,12 @@ class GreenTransferMatrix:
 
 
 def _candidate_boundary_metadata(poisson_solver, points: np.ndarray, cell_ids: np.ndarray, tol: float) -> dict[str, Any]:
-    V = getattr(poisson_solver, "V", None)
-    if V is None:
-        return {"num_boundary_candidates": None, "boundary_candidate_indices": None}
-    dof_coords = np.asarray(V.tabulate_dof_coordinates(), dtype=float)
+    locator = get_p1_tetra_locator(poisson_solver)
+    _, vertices_by_candidate = locator.cell_geometry(cell_ids)
     boundary_indices: list[int] = []
     boundary_kinds: list[str] = []
     barycentric_mins: list[float] = []
-    for candidate_index, (point, cell_id) in enumerate(zip(points, cell_ids, strict=True)):
-        cell_dofs = np.asarray(V.dofmap.cell_dofs(int(cell_id)), dtype=np.int64)
-        if cell_dofs.shape != (4,):
-            raise NotImplementedError("candidate boundary diagnostics currently support only scalar P1 tetra spaces")
-        vertices = dof_coords[cell_dofs, :3]
+    for candidate_index, (point, vertices) in enumerate(zip(points, vertices_by_candidate, strict=True)):
         barycentric = barycentric_coordinates_tetra(point, vertices)
         flags = barycentric_boundary_flags(barycentric, tol=tol)
         barycentric_mins.append(float(barycentric.min()))

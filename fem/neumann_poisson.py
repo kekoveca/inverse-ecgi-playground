@@ -180,6 +180,7 @@ class FEMProblem:
         self.domain, self.V = self.function_space_factory.create(mesh_data, comm=self.comm, fx=fx)
         self._p1_node_dof_mapping = None
         self._p1_node_dof_mapping_tol: float | None = None
+        self._p1_tetra_locator = None
 
         self.a_form = None
         self.A = None
@@ -256,6 +257,14 @@ class FEMProblem:
             self._p1_node_dof_mapping = build_p1_node_dof_mapping(self, tol=tol)
             self._p1_node_dof_mapping_tol = tol
         return self._p1_node_dof_mapping
+
+    def p1_tetra_locator(self):
+        """Return cached local-cell locator for scalar P1 tetra DOLFINx meshes."""
+        if self._p1_tetra_locator is None:
+            from .p1_locator import DOLFINxP1TetraLocator
+
+            self._p1_tetra_locator = DOLFINxP1TetraLocator.from_solver(self)
+        return self._p1_tetra_locator
 
     @property
     def node_to_dof_map(self) -> np.ndarray:
@@ -358,6 +367,7 @@ class FEMProblem:
 
     def destroy(self) -> None:
         """Collectively destroy PETSc objects owned by the solver."""
+        self._p1_tetra_locator = None
         if self.linear_solver is not None:
             self.linear_solver.destroy()
             self.linear_solver = None

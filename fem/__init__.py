@@ -14,10 +14,12 @@ from .neumann_poisson import (
     StiffnessOperator,
 )
 from .nullspace import ConstantNullspace, NeumannNullspaceHandler
+from .p1_locator import DOLFINxP1TetraLocator, get_p1_tetra_locator
 
 __all__ = [
     "ConstantNullspace",
     "DOLFINxP1Mapping",
+    "DOLFINxP1TetraLocator",
     "FEMProblem",
     "FunctionSpaceFactory",
     "LinearSolver",
@@ -28,5 +30,6 @@ __all__ = [
     "build_node_to_dof_map_p1",
     "build_p1_node_dof_mapping",
     "create_dolfinx_mesh",
+    "get_p1_tetra_locator",
     "infer_cell_type",
 ]

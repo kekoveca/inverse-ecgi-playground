@@ -168,18 +168,27 @@ def _num_local_dolfinx_cells(solver) -> int:
     return int(index_map.size_local)
 
 
+def _solver_p1_tetra_locator(solver):
+    try:
+        from fem import get_p1_tetra_locator
+    except ImportError as exc:  # pragma: no cover - fem is required for this path
+        raise ImportError("fem.get_p1_tetra_locator is required for DOLFINx point location") from exc
+
+    return get_p1_tetra_locator(solver)
+
+
 def _dolfinx_cell_geometry(solver, cell_id: int) -> tuple[np.ndarray, np.ndarray]:
-    V = _solver_function_space(solver)
     cell_id = int(cell_id)
     num_cells = _num_local_dolfinx_cells(solver)
     if cell_id < 0 or cell_id >= num_cells:
         raise ValueError(f"DOLFINx cell_id {cell_id} is outside local cells [0, {num_cells})")
 
-    cell_dofs = np.asarray(V.dofmap.cell_dofs(cell_id), dtype=np.int64)
+    locator = _solver_p1_tetra_locator(solver)
+    cell_dofs_array, vertices_array = locator.cell_geometry([cell_id])
+    cell_dofs = np.asarray(cell_dofs_array[0], dtype=np.int64)
     if cell_dofs.shape != (4,):
         raise NotImplementedError("Point dipole RHS assembly currently supports only scalar P1 tetra spaces.")
-    dof_coords = np.asarray(V.tabulate_dof_coordinates(), dtype=float)
-    return cell_dofs, dof_coords[cell_dofs, :3].copy()
+    return cell_dofs, np.asarray(vertices_array[0], dtype=float).copy()
 
 
 def locate_point_in_dolfinx_p1_tetra_mesh(
@@ -200,7 +209,6 @@ def locate_point_in_dolfinx_p1_tetra_mesh(
     if not np.all(np.isfinite(point)):
         raise ValueError("point must contain only finite values")
 
-    V = _solver_function_space(solver)
     num_cells = _num_local_dolfinx_cells(solver)
     if candidate_cell_ids is None:
         cell_ids = np.arange(num_cells, dtype=np.int64)
@@ -213,16 +221,8 @@ def locate_point_in_dolfinx_p1_tetra_mesh(
         if cell_ids.min() < 0 or cell_ids.max() >= num_cells:
             raise ValueError("candidate_cell_ids contain ids outside local DOLFINx cells")
 
-    dof_coords = np.asarray(V.tabulate_dof_coordinates(), dtype=float)
-    for candidate in cell_ids:
-        candidate_int = int(candidate)
-        cell_dofs = np.asarray(V.dofmap.cell_dofs(candidate_int), dtype=np.int64)
-        if cell_dofs.shape != (4,):
-            raise NotImplementedError("Point dipole location currently supports only scalar P1 tetra spaces.")
-        vertices = dof_coords[cell_dofs, :3]
-        if point_in_tetra(point, vertices, tol=tol):
-            return candidate_int
-    raise ValueError(f"point {point.tolist()} is not inside any local DOLFINx P1 tetra cell")
+    locator = _solver_p1_tetra_locator(solver)
+    return int(locator.locate_point(point, candidate_cell_ids=cell_ids, tol=tol))
 
 
 def _resolve_dolfinx_cell_id(
