@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -8,13 +9,16 @@ from fem import FEMProblem, create_dolfinx_mesh
 from sources import PointDipole, assemble_point_dipole_rhs_petsc
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TORSO_MESH = PROJECT_ROOT / "meshes" / "torso.msh"
+
 os.environ.setdefault("TMPDIR", "/tmp")
 os.environ.setdefault("OMPI_MCA_orte_tmpdir_base", "/tmp")
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_DOLFINX_TESTS") != "1",
     reason="set RUN_DOLFINX_TESTS=1 to run real DOLFINx integration tests:\n\
-        RUN_DOLFINX_TESTS=1 pytest -v test_fem_dolfinx_integration.py",
+        RUN_DOLFINX_TESTS=1 pytest -v tests/test_fem_dolfinx_integration.py",
 )
 
 
@@ -95,7 +99,7 @@ def test_point_dipole_petsc_rhs_solves_with_real_fem_problem():
 
 
 def test_real_gmsh_meshdata_block_can_become_dolfinx_mesh():
-    mesh = read_gmsh_meshio("torso.msh", dim=3)
+    mesh = read_gmsh_meshio(TORSO_MESH, dim=3)
     volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
 
     domain = create_dolfinx_mesh(volume_mesh)

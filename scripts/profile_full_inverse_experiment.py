@@ -12,6 +12,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
+DEFAULT_MESH = PROJECT_ROOT / "meshes" / "torso_refined.msh"
 for path in (PROJECT_ROOT, EXAMPLES_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -42,7 +43,7 @@ def parse_args() -> argparse.Namespace:
         description="Profile the full forward -> Green -> inverse pipeline.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--mesh", default="torso_refined.msh")
+    parser.add_argument("--mesh", default=str(DEFAULT_MESH))
     parser.add_argument("--output", default="output/performance_profile")
     parser.add_argument("--domain-name", default="domain")
     parser.add_argument("--boundary-name", default="boundary")

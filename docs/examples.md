@@ -5,7 +5,7 @@
 ```python
 from geometry import read_gmsh_meshio
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
+tagged = read_gmsh_meshio("meshes/torso.msh", dim=3)
 volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
 surface_mesh = tagged.to_mesh_data("triangle", physical_name="boundary")
 
@@ -103,7 +103,7 @@ finally:
 
 ```bash
 python3 examples/forward_pipeline.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --physical-name domain \
   --position 0 0 0 \
   --moment 0 0 1
@@ -124,7 +124,7 @@ boundary dim=2, triangle torso surface
 
 ```bash
 python3 examples/full_inverse_experiment_torso.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment \
   --num-electrodes 32 \
   --num-candidates 50 \
@@ -149,7 +149,7 @@ Outputs include JSON summaries, measurements NPZ, electrode/candidate CSV files 
 ```bash
 python3 scripts/profile_components.py \
   --component green-transfer \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --num-candidates 50 \
   --num-measurements 16 \
   --output output/green_transfer_profile

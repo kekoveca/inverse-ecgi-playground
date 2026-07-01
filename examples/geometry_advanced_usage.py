@@ -18,7 +18,7 @@ from geometry import (
     plot_torso_geometry,
 )
 
-mesh = read_gmsh_meshio("torso.msh", dim=3)
+mesh = read_gmsh_meshio(PROJECT_ROOT / "meshes" / "torso.msh", dim=3)
 
 volume_mesh = mesh.to_mesh_data(
     cell_type="tetra",

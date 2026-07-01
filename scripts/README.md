@@ -6,7 +6,7 @@ Run scripts from the repository root.
 
 ```bash
 python3 scripts/profile_full_inverse_experiment.py \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --output output/performance_profile \
   --num-electrodes 128 \
   --num-candidates 50 \
@@ -21,8 +21,8 @@ Average reference is the default. `--reference single` requires `--reference-ind
 ## Component profiles
 
 ```bash
-python3 scripts/profile_components.py --component point-location --mesh torso_refined.msh
-python3 scripts/profile_components.py --component green-transfer --mesh torso_refined.msh
+python3 scripts/profile_components.py --component point-location --mesh meshes/torso_refined.msh
+python3 scripts/profile_components.py --component green-transfer --mesh meshes/torso_refined.msh
 python3 scripts/profile_components.py --component inverse-scaling
 ```
 

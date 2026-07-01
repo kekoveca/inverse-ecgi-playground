@@ -152,7 +152,7 @@ from fem import NeumannPoissonSolver
 from sources import PointDipole
 from forward import ForwardSolver, export_forward_result_to_vtx
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
+tagged = read_gmsh_meshio("meshes/torso.msh", dim=3)
 mesh = tagged.to_mesh_data("tetra", physical_name="domain")
 electrodes = ElectrodeSet(
     positions=mesh.points[[0, 1]].copy(),
@@ -191,5 +191,5 @@ Run:
 
 ```bash
 TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_forward_convergence.py
+  pytest tests/test_forward_convergence.py
 ```

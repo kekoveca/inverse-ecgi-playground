@@ -53,7 +53,7 @@ print(report.is_valid)
 ```python
 from geometry import read_gmsh_meshio
 
-mesh = read_gmsh_meshio("torso.msh", dim=3)
+mesh = read_gmsh_meshio("meshes/torso.msh", dim=3)
 volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
 surface_mesh = mesh.to_mesh_data("triangle", physical_name="boundary")
 ```

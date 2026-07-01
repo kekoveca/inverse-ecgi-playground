@@ -211,10 +211,10 @@ If `best_rel_error` is small but inverse selects another position, inspect ambig
 Run checks from least to most expensive:
 
 ```bash
-pytest test_convergence_utils.py test_measurements_module.py
+pytest tests/test_convergence_utils.py tests/test_measurements_module.py
 
 TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_forward_convergence.py test_poisson_manufactured_solution.py
+  pytest tests/test_forward_convergence.py tests/test_poisson_manufactured_solution.py
 ```
 
 Interpretation:
@@ -233,7 +233,7 @@ Separate point location from gradient evaluation:
 ```bash
 python3 scripts/profile_components.py \
   --component green-transfer \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --num-candidates 50 \
   --num-measurements 16 \
   --output output/green_transfer_profile

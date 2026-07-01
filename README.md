@@ -5,7 +5,7 @@
 The project solves the forward problem and a discrete single-dipole inverse problem for electric potential in a tetrahedral torso model:
 
 ```text
-torso.msh -> geometry -> Neumann FEM -> point-dipole forward measurements
+meshes/torso.msh -> geometry -> Neumann FEM -> point-dipole forward measurements
           -> GreenTransferMatrix -> single-dipole inverse -> benchmark metrics
 ```
 
@@ -41,6 +41,8 @@ Numerical verification, ParaView export, and performance profiling accompany the
 | `performance/` | Timing, memory and cProfile helpers |
 | `examples/` | Runnable forward and full inverse tutorials |
 | `scripts/` | Full-pipeline and component profiling CLIs |
+| `tests/` | Numpy and gated DOLFINx test suites |
+| `meshes/` | Example Gmsh meshes used by tutorials and integration tests |
 
 ## Installation / requirements
 
@@ -61,7 +63,7 @@ The included CLI reads the `domain` tetra physical group, solves one source and 
 
 ```bash
 python3 examples/forward_pipeline.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --physical-name domain \
   --position 0 0 0 \
   --moment 0 0 1
@@ -77,7 +79,7 @@ from forward import ForwardSolver, export_forward_result_to_vtx
 from geometry import ElectrodeSet, read_gmsh_meshio
 from sources import PointDipole
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
+tagged = read_gmsh_meshio("meshes/torso.msh", dim=3)
 volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
 electrodes = ElectrodeSet(
     positions=volume_mesh.points[[0, 1]].copy(),
@@ -100,7 +102,7 @@ The tutorial requires `domain` (dim 3) and `boundary` (dim 2) physical groups:
 
 ```bash
 python3 examples/full_inverse_experiment_torso.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment \
   --num-electrodes 32 \
   --num-candidates 50 \
@@ -130,7 +132,7 @@ The clipped-sphere variant generates quasi-uniform outer points and centrally pr
 
 ```bash
 python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment_clipped_sphere \
   --num-electrodes 32 \
   --num-candidates 50
@@ -190,7 +192,7 @@ Full-pipeline profile:
 
 ```bash
 python3 scripts/profile_full_inverse_experiment.py \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --output output/performance_profile \
   --num-electrodes 128 \
   --num-candidates 50 \
@@ -201,8 +203,8 @@ python3 scripts/profile_full_inverse_experiment.py \
 This writes `timing.csv`, `timing.json`, `memory.json` and `profile_summary.md`. Component profiles isolate point location, transfer construction and inverse scaling:
 
 ```bash
-python3 scripts/profile_components.py --component point-location --mesh torso_refined.msh
-python3 scripts/profile_components.py --component green-transfer --mesh torso_refined.msh
+python3 scripts/profile_components.py --component point-location --mesh meshes/torso_refined.msh
+python3 scripts/profile_components.py --component green-transfer --mesh meshes/torso_refined.msh
 python3 scripts/profile_components.py --component inverse-scaling
 ```
 

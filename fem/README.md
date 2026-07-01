@@ -83,8 +83,8 @@ Call `solver.destroy()` when finished. It destroys PETSc owners and clears the c
 FEniCSx imports are lazy. Real solves require DOLFINx, UFL, Basix, PETSc, `mpi4py`, and `petsc4py`.
 
 ```bash
-pytest test_fem_units.py
-TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest test_fem_dolfinx_integration.py test_fem_p1_locator.py
+pytest tests/test_fem_units.py
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest tests/test_fem_dolfinx_integration.py tests/test_fem_p1_locator.py
 ```
 
 Dipole physics, electrode measurements, Green functions, and inverse regularization belong to higher-level modules.

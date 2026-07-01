@@ -10,6 +10,7 @@ import numpy as np
 # Allow running as:
 #   python3 examples/forward_pipeline_multiple_rhs.py ...
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MESH = PROJECT_ROOT / "meshes" / "torso.msh"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -35,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Solve the Neumann Poisson forward problem on torso.msh and export potential to ParaView."
     )
-    parser.add_argument("--mesh", default="torso.msh", help="Path to the Gmsh .msh file.")
+    parser.add_argument("--mesh", default=str(DEFAULT_MESH), help="Path to the Gmsh .msh file.")
     parser.add_argument("--physical-name", default="domain", help="Gmsh physical volume name for tetra cells.")
     parser.add_argument(
         "--bbox",

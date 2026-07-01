@@ -15,6 +15,7 @@ import numpy as np
 # Allow running as:
 #   python3 examples/full_inverse_experiment_torso.py ...
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MESH = PROJECT_ROOT / "meshes" / "torso.msh"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -50,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         description="Full forward -> Green -> inverse tutorial experiment on torso.msh.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--mesh", default="torso.msh", help="Path to Gmsh .msh torso mesh.")
+    parser.add_argument("--mesh", default=str(DEFAULT_MESH), help="Path to Gmsh .msh torso mesh.")
     parser.add_argument("--output", default="output/full_inverse_experiment", help="Output directory.")
     parser.add_argument("--domain-name", default="domain", help="Physical group name for tetra volume.")
     parser.add_argument("--boundary-name", default="boundary", help="Physical group name for triangle boundary.")

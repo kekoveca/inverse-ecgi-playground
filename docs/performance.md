@@ -23,7 +23,7 @@ from performance import (
 
 ```bash
 python3 scripts/profile_full_inverse_experiment.py \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --output output/performance_profile \
   --num-electrodes 128 \
   --num-candidates 50 \
@@ -60,7 +60,7 @@ When a partial Green basis is used, transfer measurement rows are identified by 
 ```bash
 python3 scripts/profile_components.py \
   --component point-location \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --num-location-points 100 \
   --output output/point_location_profile
 ```
@@ -72,7 +72,7 @@ This measures initial `DOLFINxP1TetraLocator` construction and batched location 
 ```bash
 python3 scripts/profile_components.py \
   --component green-transfer \
-  --mesh torso_refined.msh \
+  --mesh meshes/torso_refined.msh \
   --num-candidates 50 \
   --num-measurements 16 \
   --output output/green_transfer_profile

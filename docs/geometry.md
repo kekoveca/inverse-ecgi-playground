@@ -63,7 +63,7 @@ This is the Gmsh-style `(dim, tag)` order. `meshio` returns `name -> (tag, dim)`
 ```python
 from geometry import read_gmsh_meshio
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
+tagged = read_gmsh_meshio("meshes/torso.msh", dim=3)
 
 volume_mesh = tagged.to_mesh_data(
     cell_type="tetra",

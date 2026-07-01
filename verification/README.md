@@ -10,9 +10,9 @@ Numerical helpers for checking the FEM and forward pipeline:
 The module imports without DOLFINx. Real FEM tests are gated by `RUN_DOLFINX_TESTS=1`:
 
 ```bash
-pytest test_convergence_utils.py
+pytest tests/test_convergence_utils.py
 TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_forward_convergence.py test_poisson_manufactured_solution.py
+  pytest tests/test_forward_convergence.py tests/test_poisson_manufactured_solution.py
 ```
 
 Additional integration tests cover the cached P1 locator, source localization, FEM/Green reciprocity, single-dipole inverse recovery, and benchmark handoff.

@@ -5,7 +5,7 @@
 `full_inverse_experiment_torso.py` is a tutorial-style end-to-end script:
 
 ```text
-import torso.msh
+import meshes/torso.msh
   -> extract volume/surface physical groups
   -> select demo electrodes on the surface
   -> run existing central electrode projection API
@@ -23,7 +23,7 @@ Run:
 
 ```bash
 python3 examples/full_inverse_experiment_torso.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment \
   --num-electrodes 32 \
   --num-candidates 50 \
@@ -36,7 +36,7 @@ For a faster smoke run without ParaView files:
 
 ```bash
 python3 examples/full_inverse_experiment_torso.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment_smoke \
   --num-electrodes 8 \
   --num-candidates 5 \
@@ -122,7 +122,7 @@ Run:
 
 ```bash
 python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment_clipped_sphere \
   --num-electrodes 32 \
   --num-candidates 50 \
@@ -134,7 +134,7 @@ For a fast no-export smoke run:
 
 ```bash
 python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
-  --mesh torso.msh \
+  --mesh meshes/torso.msh \
   --output output/full_inverse_experiment_clipped_sphere_smoke \
   --num-electrodes 8 \
   --num-candidates 5 \

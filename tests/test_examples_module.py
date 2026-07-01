@@ -7,8 +7,11 @@ import pytest
 from geometry import ElectrodeSet, MeshData
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
 def _load_full_inverse_example():
-    module_path = Path(__file__).resolve().parent / "examples" / "full_inverse_experiment_torso.py"
+    module_path = PROJECT_ROOT / "examples" / "full_inverse_experiment_torso.py"
     spec = importlib.util.spec_from_file_location("full_inverse_experiment_torso", module_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -18,7 +21,7 @@ def _load_full_inverse_example():
 
 def _load_clipped_sphere_example():
     module_path = (
-        Path(__file__).resolve().parent
+        PROJECT_ROOT
         / "examples"
         / "full_inverse_experiment_torso_clipped_sphere_electrodes.py"
     )

@@ -14,6 +14,7 @@ import numpy as np
 #   python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py ...
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = Path(__file__).resolve().parent
+DEFAULT_MESH = PROJECT_ROOT / "meshes" / "torso.msh"
 for path in (PROJECT_ROOT, EXAMPLES_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -31,7 +32,7 @@ def parse_args() -> argparse.Namespace:
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--mesh", default="torso.msh", help="Path to Gmsh .msh torso mesh.")
+    parser.add_argument("--mesh", default=str(DEFAULT_MESH), help="Path to Gmsh .msh torso mesh.")
     parser.add_argument(
         "--output",
         default="output/full_inverse_experiment_clipped_sphere_electrodes",

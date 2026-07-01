@@ -171,7 +171,7 @@ Result metadata contains:
 ```python
 from geometry import read_gmsh_meshio
 
-mesh = read_gmsh_meshio("torso.msh", dim=3)
+mesh = read_gmsh_meshio("meshes/torso.msh", dim=3)
 
 print(mesh.field_data)
 print(mesh.physical_dimension("domain"))
@@ -228,7 +228,7 @@ from geometry import (
     validate_torso_geometry,
 )
 
-mesh = read_gmsh_meshio("torso.msh", dim=3)
+mesh = read_gmsh_meshio("meshes/torso.msh", dim=3)
 
 volume_mesh = mesh.to_mesh_data("tetra", physical_name="domain")
 surface_mesh = mesh.to_mesh_data("triangle", physical_name="boundary")
