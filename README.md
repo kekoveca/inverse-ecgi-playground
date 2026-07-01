@@ -2,28 +2,28 @@
 
 ## Project goal
 
-Проект решает прямую и дискретную одно-дипольную обратную задачу для электрического потенциала в тетраэдральной модели торса:
+The project solves the forward problem and a discrete single-dipole inverse problem for electric potential in a tetrahedral torso model:
 
 ```text
 torso.msh -> geometry -> Neumann FEM -> point-dipole forward measurements
           -> GreenTransferMatrix -> single-dipole inverse -> benchmark metrics
 ```
 
-Численная verification, ParaView export и performance profiling сопровождают основной pipeline.
+Numerical verification, ParaView export, and performance profiling accompany the main pipeline.
 
 ## Current capabilities
 
-- импорт Gmsh/meshio сеток и physical groups;
-- `MeshData`, электроды, source regions и geometry validation;
-- scalar P1 DOLFINx/PETSc Poisson solver с pure-Neumann nullspace;
-- point-dipole RHS в MeshData node и DOLFINx DOF ordering;
-- interpolation/reference operator `M = R @ P`;
-- forward solve, measurements и VTX/XDMF export;
-- central projection внешних электродов на triangle surface;
-- Green basis и tensor `A[j, i, :] = grad G_i(x_j)`;
+- Gmsh/meshio mesh and physical-group import;
+- `MeshData`, electrodes, source regions, and geometry validation;
+- a scalar P1 DOLFINx/PETSc Poisson solver with a pure-Neumann nullspace;
+- point-dipole RHS assembly in MeshData node and DOLFINx DOF ordering;
+- the interpolation/reference operator `M = R @ P`;
+- forward solves, measurements, and VTX/XDMF export;
+- central projection of outside electrodes onto a triangle surface;
+- a Green basis and tensor `A[j, i, :] = grad G_i(x_j)`;
 - single-dipole Tikhonov/LS inverse search;
-- forward/inverse benchmark records, noise models и metrics;
-- convergence checks, profiling и diagnostics.
+- forward/inverse benchmark records, noise models, and metrics;
+- convergence checks, profiling, and diagnostics.
 
 ## Repository structure
 

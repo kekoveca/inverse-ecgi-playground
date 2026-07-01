@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`benchmark` — инфраструктура forward and inverse experiments:
+`benchmark` provides infrastructure for forward and inverse experiments:
 
 ```text
 geometry
@@ -15,11 +15,11 @@ geometry
   -> saved result
 ```
 
-Модуль не строит Green functions сам. Forward benchmark генерирует воспроизводимые synthetic observations, а inverse benchmark применяет готовый `GreenTransferMatrix` к этим observations и считает localization/moment metrics.
+The module does not build Green functions itself. The forward benchmark generates reproducible synthetic observations, while the inverse benchmark applies an existing `GreenTransferMatrix` and computes localization/moment metrics.
 
 ## Scenario
 
-`ForwardBenchmarkScenario` описывает декартово произведение sources, electrode subsets и noise models для одной geometry:
+`ForwardBenchmarkScenario` describes the Cartesian product of sources, electrode subsets, and noise models for one geometry:
 
 ```python
 from benchmark import ForwardBenchmarkScenario
@@ -36,7 +36,7 @@ scenario = ForwardBenchmarkScenario(
 scenario.validate()
 ```
 
-`to_config_dict()` сохраняет counts/configuration, но не сериализует mesh arrays или measurements.
+`to_config_dict()` stores counts/configuration without serializing mesh arrays or measurements.
 
 ## Source sets
 
@@ -51,9 +51,9 @@ sources = generate_random_sources_from_region(
 )
 ```
 
-Также доступна deterministic генерация `generate_sources_from_region` с `stride` и `max_positions`. `SourceSet.to_table()` возвращает pandas/CSV-friendly rows.
+Deterministic `generate_sources_from_region` is also available with `stride` and `max_positions`. `SourceSet.to_table()` returns pandas/CSV-friendly rows.
 
-`source.cell_id` остаётся MeshData cell id. PETSc assembler по умолчанию заново локализует `source.position` в DOLFINx ordering.
+`source.cell_id` remains a MeshData cell id. By default, the PETSc assembler locates `source.position` again in DOLFINx ordering.
 
 ## Electrode subsets
 
@@ -71,7 +71,7 @@ subsets = [
 ]
 ```
 
-Farthest-point sampling жадно максимизирует минимальное расстояние до уже выбранного множества. `ElectrodeSubset.indices` сохраняет ids исходного `ElectrodeSet`.
+Farthest-point sampling greedily maximizes the minimum distance to the selected set. `ElectrodeSubset.indices` preserves ids from the original `ElectrodeSet`.
 
 ## Noise
 
@@ -85,17 +85,17 @@ noise_models = [
 ]
 ```
 
-Доступны:
+Available models:
 
 - `NoNoise`;
 - `AbsoluteGaussianNoise(sigma, seed)`;
 - `RelativeGaussianNoise(snr_db, seed)`.
 
-Relative noise масштабируется по L2 norm до заданного amplitude SNR. Для нулевого signal возвращается нулевой noise. `apply` никогда не изменяет input inplace.
+Relative noise is scaled by L2 norm to the requested amplitude SNR. A zero signal produces zero noise. `apply` never mutates its input in place.
 
 ## Metrics
 
-Основные функции:
+Main functions:
 
 - `rmse`;
 - `relative_l2_error`;
@@ -105,7 +105,7 @@ Relative noise масштабируется по L2 norm до заданного
 - `forward_signal_metrics`;
 - `noise_metrics`.
 
-Correlation почти константного вектора возвращает `NaN`; zero-noise SNR равен infinity.
+Correlation of an almost constant vector returns `NaN`; zero-noise SNR is infinity.
 
 ## Running
 
@@ -125,7 +125,7 @@ result = runner.run(scenario)
 save_forward_benchmark_result(result, "results/torso_forward_smoke")
 ```
 
-Runner создаёт один Poisson solver на geometry и переиспользует stiffness matrix для всех subsets/sources. По умолчанию potentials не сохраняются. `export_potentials=True` экспортирует VTX/BP, но требует `output_dir`.
+The runner creates one Poisson solver per geometry and reuses the stiffness matrix for all subsets/sources. Potentials are not retained by default. `export_potentials=True` exports VTX/BP and requires `output_dir`.
 
 ## Outputs
 
@@ -138,11 +138,11 @@ results/torso_forward_smoke/
 ```
 
 - `config.json` — compact scenario configuration;
-- `records.csv` — scalar metadata и metrics без массивов;
-- `measurements.npz` — `clean_XXXXXX`, `noisy_XXXXXX`, `noise_XXXXXX` для каждого record;
-- `summary.json` — counts и использованные subsets/models.
+- `records.csv` - scalar metadata and metrics without arrays;
+- `measurements.npz` - `clean_XXXXXX`, `noisy_XXXXXX`, and `noise_XXXXXX` for each record;
+- `summary.json` - counts and selected subsets/models.
 
-Отдельные NPZ keys поддерживают разные количества электродов без unsafe object arrays.
+Separate NPZ keys support different electrode counts without unsafe object arrays.
 
 ## Inverse benchmark
 

@@ -1,20 +1,20 @@
 # Geometry
 
-Модуль `geometry` хранит и проверяет геометрические данные. Он не собирает FEM-матрицы и не зависит от DOLFINx.
+The `geometry` module stores and validates geometric data. It does not assemble FEM matrices and does not depend on DOLFINx.
 
 ## Main classes
 
-- `MeshData` — единый контейнер сетки, cell blocks и physical tags.
-- `ElectrodeSet` — позиции и labels электродов.
-- `SourceRegion` — допустимые candidate points и соответствующие MeshData cell ids.
-- `TorsoGeometry` — volume mesh, optional surface mesh, электроды и source region.
-- `AffineTransform` — аффинные преобразования геометрических объектов.
+- `MeshData` - the unified container for meshes, cell blocks, and physical tags.
+- `ElectrodeSet` - electrode positions and labels.
+- `SourceRegion` - allowed candidate points and corresponding MeshData cell ids.
+- `TorsoGeometry` - volume mesh, optional surface mesh, electrodes, and source region.
+- `AffineTransform` - affine transformations for geometry objects.
 
-Отдельные классы `TaggedMesh` и `Mesh` были удалены при объединении моделей. Их функции перенесены в `MeshData`; в текущем публичном API следует использовать только `MeshData`.
+The separate `TaggedMesh` and `Mesh` classes were removed when the models were unified. Their functionality moved into `MeshData`; the current public API uses `MeshData` only.
 
 ## MeshData
 
-Основные поля:
+Main fields:
 
 ```python
 MeshData(
@@ -29,26 +29,26 @@ MeshData(
 )
 ```
 
-`points`, `cells` и `cell_type` задают активный block. При чтении Gmsh-сетки `cell_blocks` может одновременно содержать `tetra`, `triangle` и `line`.
+`points`, `cells`, and `cell_type` define the active block. When reading a Gmsh mesh, `cell_blocks` may contain `tetra`, `triangle`, and `line` blocks at the same time.
 
-Node ids и cell ids принадлежат только ordering этого `MeshData`. После преобразования в DOLFINx нельзя считать их равными DOF/cell ids.
+Node and cell ids belong only to this `MeshData` ordering. After DOLFINx conversion, they must not be assumed equal to DOF or cell ids.
 
 ## TaggedMesh compatibility
 
-Исторический `TaggedMesh` больше не является отдельным классом. Gmsh/meshio import, `field_data`, `cell_tags`, multi-block storage, `physical_tag`, `physical_dimension`, `cell_block` и `to_mesh_data` реализованы непосредственно в `MeshData`.
+The historical `TaggedMesh` is no longer a separate class. Gmsh/meshio import, `field_data`, `cell_tags`, multi-block storage, `physical_tag`, `physical_dimension`, `cell_block`, and `to_mesh_data` are implemented directly by `MeshData`.
 
-Старый код и документацию следует переводить на `MeshData`; aliases `TaggedMesh`/`Mesh` не экспортируются.
+Older code and documentation should use `MeshData`; `TaggedMesh` and `Mesh` aliases are not exported.
 
 ## Gmsh physical tags
 
-Внутренняя конвенция проекта:
+Internal project convention:
 
 ```python
 field_data: dict[str, tuple[int, int]]
 # name -> (dim, tag)
 ```
 
-Например:
+For example:
 
 ```python
 mesh.field_data["domain"] == (3, 1)
@@ -56,7 +56,7 @@ mesh.physical_dimension("domain") == 3
 mesh.physical_tag("domain") == 1
 ```
 
-Это Gmsh-подобный порядок `(dim, tag)`. `meshio` возвращает `name -> (tag, dim)`, поэтому `read_gmsh_meshio` переворачивает пары при импорте.
+This is the Gmsh-style `(dim, tag)` order. `meshio` returns `name -> (tag, dim)`, so `read_gmsh_meshio` reverses pairs during import.
 
 ## Reading `.msh`
 
@@ -75,7 +75,7 @@ surface_mesh = tagged.to_mesh_data(
 )
 ```
 
-`to_mesh_data` возвращает новый `MeshData` с одним активным block и сохраняет physical metadata.
+`to_mesh_data` returns a new `MeshData` with one active block and preserves physical metadata.
 
 Extracted surface blocks may retain the full global `points` array from the Gmsh file. Therefore `surface_mesh.num_points` can equal `volume_mesh.num_points` even when only a subset is referenced by boundary triangles. For diagnostics use:
 
@@ -96,22 +96,22 @@ electrodes = ElectrodeSet(
 )
 ```
 
-Для первичной проверки размещения доступен `electrode_placement_report(electrodes, mesh)`, который измеряет расстояния до ближайших mesh nodes.
+For an initial placement check, `electrode_placement_report(electrodes, mesh)` measures distances to the nearest mesh nodes.
 
-Если электроды заданы немного вне volume mesh, модуль `measurements` умеет центрально проецировать их на surface mesh перед построением measurement operator. Эта операция не меняет исходный `ElectrodeSet` внутри `TorsoGeometry`; спроецированные позиции и report хранятся в `MeasurementOperator.metadata["electrode_projection"]`.
+If electrodes lie slightly outside the volume mesh, `measurements` can centrally project them onto the surface mesh before building the measurement operator. This does not mutate the original `ElectrodeSet` in `TorsoGeometry`; projected positions and the report are stored in `MeasurementOperator.metadata["electrode_projection"]`.
 
-`ElectrodeProjectionReport.surface_cell_ids == -1` означает, что projection triangle не записывался для этого электрода, обычно потому что он уже находился внутри/на границе и `project_only_outside=True`. Это не означает ошибку surface mesh.
+`ElectrodeProjectionReport.surface_cell_ids == -1` means no projection triangle was recorded for that electrode, usually because it was already inside/on the boundary and `project_only_outside=True`. It does not indicate a surface-mesh error.
 
 ## SourceRegion
 
-`SourceRegion` хранит:
+`SourceRegion` stores:
 
 ```text
 candidate_points
 candidate_cell_ids  # MeshData cell ordering
 ```
 
-Способы создания:
+Construction methods:
 
 - `SourceRegion.all_cells(mesh)`;
 - `SourceRegion.from_cell_ids(mesh, cell_ids)`;
@@ -132,7 +132,7 @@ region = SourceRegion.from_bounding_box(
 
 ## TorsoGeometry
 
-`TorsoGeometry` объединяет данные одного geometry case:
+`TorsoGeometry` combines the data for one geometry case:
 
 ```python
 from geometry import TorsoGeometry
@@ -146,15 +146,15 @@ torso = TorsoGeometry(
 )
 ```
 
-`validate_torso_geometry(torso)` проверяет согласованность dimensions, cell ids, electrode positions и наличие данных.
+`validate_torso_geometry(torso)` checks dimensions, cell ids, electrode positions, and required data for consistency.
 
 ## Units and coordinate frame
 
-`geometry` не назначает единицы автоматически. Mesh points, electrodes, source regions, transforms и distance thresholds должны использовать одну coordinate frame и одну систему единиц. Если `.msh` задан в миллиметрах, localization errors и projection distances также будут в миллиметрах; `sigma` должен быть согласован с выбранной физической моделью.
+`geometry` does not assign units automatically. Mesh points, electrodes, source regions, transforms, and distance thresholds must use one coordinate frame and unit system. If `.msh` uses millimeters, localization errors and projection distances are also in millimeters; `sigma` must be consistent with the physical model.
 
 ## Visualization
 
-Визуализация предназначена для диагностики и требует `matplotlib`:
+Visualization is intended for diagnostics and requires `matplotlib`:
 
 ```python
 import matplotlib.pyplot as plt
@@ -171,4 +171,4 @@ plot_torso_geometry(
 )
 ```
 
-Для FEM fields и больших 3D-сеток используйте экспорт VTX/XDMF и ParaView.
+Use VTX/XDMF export and ParaView for FEM fields and large 3D meshes.

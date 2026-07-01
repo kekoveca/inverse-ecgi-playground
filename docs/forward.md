@@ -2,7 +2,7 @@
 
 ## ForwardSolver
 
-`ForwardSolver` связывает готовый Neumann solver, point dipole source и optional measurement operator:
+`ForwardSolver` connects an existing Neumann solver, point-dipole source, and optional measurement operator:
 
 ```text
 source
@@ -23,7 +23,7 @@ evaluate measurements
 ForwardResult
 ```
 
-Stiffness matrix не пересобирается: `ForwardSolver` использует уже созданный `NeumannPoissonSolver`.
+The stiffness matrix is not reassembled: `ForwardSolver` uses an existing `NeumannPoissonSolver`.
 
 ```python
 from forward import ForwardSolver
@@ -36,45 +36,45 @@ forward = ForwardSolver(
 result = forward.solve(source)
 ```
 
-Если electrodes и measurement operator не переданы, solver всё равно возвращает potential, а measurement arrays будут пустыми.
+If neither electrodes nor a measurement operator are supplied, the solver still returns the potential and the measurement arrays are empty.
 
 ## ForwardResult
 
-Поля:
+Fields:
 
-- `source` — исходный `PointDipole`;
-- `potential` — обычно `dolfinx.fem.Function`;
-- `nodal_values` — copy массива значений функции в ordering, указанном `nodal_value_ordering`;
-- `dof_values` — явный accessor для DOLFINx dof-ordered values;
-- `meshdata_nodal_values` — optional copy в MeshData node ordering для measurement evaluation;
-- `raw_measurements` — значения до reference;
+- `source` - the original `PointDipole`;
+- `potential` - usually a `dolfinx.fem.Function`;
+- `nodal_values` - a copy of function values in the ordering specified by `nodal_value_ordering`;
+- `dof_values` - an explicit accessor for DOLFINx DOF-ordered values;
+- `meshdata_nodal_values` - an optional copy in MeshData node ordering for measurement evaluation;
+- `raw_measurements` - values before referencing;
 - `measurements` — referenced values;
-- `reference` — выбранная reference-система;
-- `metadata` — краткая информация о запуске.
+- `reference` - the selected reference system;
+- `metadata` - lightweight run information.
 
-Дополнительные properties: `num_nodes`, `num_electrodes`, `measurement_norm`, `raw_measurement_norm`, `has_meshdata_nodal_values`. `to_dict()` возвращает summary без больших массивов.
+Additional properties are `num_nodes`, `num_electrodes`, `measurement_norm`, `raw_measurement_norm`, and `has_meshdata_nodal_values`. `to_dict()` returns a summary without large arrays.
 
 ## Ordering note for measurements
 
-`potential.x.array` использует DOLFINx DOF ordering, а numpy `MeasurementOperator` строится по MeshData node ordering. `ForwardSolver` применяет проверенное coordinate-based `node_id -> dof_id` mapping и переставляет значения перед вычислением измерений. Совпадение integer ids не считается универсальным свойством.
+`potential.x.array` uses DOLFINx DOF ordering, while the numpy `MeasurementOperator` is built in MeshData node ordering. `ForwardSolver` applies a verified coordinate-based `node_id -> dof_id` mapping and reorders values before evaluating measurements. Equal integer ids are not assumed to be universal.
 
-Mapping кэшируется на `NeumannPoissonSolver` и повторно используется между forward/Green solves. Не интерпретируйте `nodal_values[node_id]` как значение MeshData node без этого mapping.
+The mapping is cached on `NeumannPoissonSolver` and reused between forward/Green solves. Do not interpret `nodal_values[node_id]` as a MeshData-node value without this mapping.
 
-Source RHS уже решает эту проблему отдельно: он собирается непосредственно через `V.dofmap.cell_dofs`.
+The source RHS handles this boundary separately by assembling directly through `V.dofmap.cell_dofs`.
 
 ## Green consistency
 
-Модуль `green` решает reciprocal systems `K G_i = M_i^T` и строит `A[j, i, :] = grad G_i(x_j)`. Для candidate source ordinary forward measurement сравнивается с `A_j @ p` через `compare_forward_and_green`. Это одновременно проверяет RHS convention, node/DOF mapping и вычисление P1 gradients.
+The `green` module solves reciprocal systems `K G_i = M_i^T` and builds `A[j, i, :] = grad G_i(x_j)`. For a candidate source, `compare_forward_and_green` compares ordinary forward measurements with `A_j @ p`. This simultaneously checks the RHS convention, node/DOF mapping, and P1 gradient calculation.
 
-Small-mesh integration tests подтверждают текущий transfer sign `+1`. `GreenTransferMatrix.sign` остаётся явной частью API и учитывается через `matrix_for_candidate()`.
+Small-mesh integration tests confirm transfer sign `+1`. `GreenTransferMatrix.sign` remains explicit in the API and is applied by `matrix_for_candidate()`.
 
-Подробности: [Green functions](green.md).
+See [Green functions](green.md) for details.
 
 ## Export
 
 ### VTX/BP
 
-Предпочтительный формат ParaView:
+Preferred ParaView format:
 
 ```python
 from forward import export_forward_result_to_vtx
@@ -82,7 +82,7 @@ from forward import export_forward_result_to_vtx
 export_forward_result_to_vtx(result, "output/potential.bp")
 ```
 
-Откройте `.bp` output в ParaView.
+Open the `.bp` output in ParaView.
 
 Generic DOLFINx Function export:
 
@@ -142,7 +142,7 @@ from forward import export_forward_result_to_xdmf
 export_forward_result_to_xdmf(result, "output/potential.xdmf")
 ```
 
-Откройте `.xdmf` в ParaView. Рядом создаётся `.h5`; эти файлы должны оставаться вместе. Если ParaView падает или показывает пустой XDMF, используйте VTX/BP.
+Open the `.xdmf` file in ParaView. A companion `.h5` file is created and must remain beside it. If ParaView crashes or shows an empty XDMF, use VTX/BP.
 
 ## Full example
 
@@ -171,23 +171,23 @@ finally:
 
 ## Forward convergence checks
 
-Point dipole solution сингулярен в source position, поэтому global potential не обязан демонстрировать стандартную smooth P1 L2 convergence.
+The point-dipole solution is singular at the source position, so the global potential is not expected to exhibit standard smooth P1 L2 convergence.
 
-`test_forward_convergence.py` проверяет:
+`test_forward_convergence.py` checks:
 
-- RHS compatibility и localization на cell dofs;
+- RHS compatibility and localization on cell DOFs;
 - finite potential/measurements;
 - average-reference zero sum;
 - deterministic repeated solve;
-- linearity по dipole moment;
-- scaling по амплитуде момента;
-- уменьшение differences между fixed remote observations при refinement `n=4, 8, 16`.
+- linearity in the dipole moment;
+- scaling with moment amplitude;
+- decreasing differences between fixed remote observations under refinement `n=4, 8, 16`.
 
-Для refinement source выбирается рядом с центром, но не на mesh face/edge/vertex. Диполь ровно в grid vertex принадлежит нескольким cells, и выбор одного local P1 gradient не образует однозначную refinement sequence.
+For refinement, the source is chosen near the center but not on a mesh face, edge, or vertex. A dipole exactly at a grid vertex belongs to several cells, and selecting one local P1 gradient does not define an unambiguous refinement sequence.
 
-Source lookup для repeated solves использует cached `DOLFINxP1TetraLocator`. Это ускоряет локализацию, но не устраняет математическую неоднозначность source на общей face/edge/vertex.
+Source lookup for repeated solves uses the cached `DOLFINxP1TetraLocator`. This accelerates localization but does not remove the mathematical ambiguity of a source on a shared face, edge, or vertex.
 
-Запуск:
+Run:
 
 ```bash
 TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \

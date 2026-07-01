@@ -1,105 +1,60 @@
-# measurements
+# Measurements module
 
-Полная документация: [../docs/measurements.md](../docs/measurements.md).
+Full guide: [../docs/measurements.md](../docs/measurements.md).
 
-`measurements` преобразует FEM-потенциал в узлах P1 тетраэдральной сетки в вектор значений на электродах.
+`measurements` converts a MeshData-node-ordered P1 potential into raw and referenced electrode values. Its core implementation uses numpy/scipy and does not require DOLFINx.
 
-Модуль не зависит от DOLFINx в основной реализации: он работает с `geometry.MeshData`, `geometry.ElectrodeSet`, `numpy` и, если доступен, `scipy.sparse`.
-
-## Матрицы
-
-Для электродов строится interpolation matrix `P`:
+## Operators
 
 ```text
 y_raw = P u
-```
-
-Для P1 tetra каждая строка `P` содержит четыре ненулевых значения: барицентрические координаты электрода в найденной ячейке.
-
-Reference-система задается матрицей `R`. Для average reference:
-
-```text
-R = I - 1/N 11^T
 g = R y_raw
+M = R P
 ```
 
-Полный measurement operator:
-
-```text
-M = R @ P
-g = M u
-```
-
-## Минимальный пример
+Each P1 tetra interpolation row has four barycentric weights.
 
 ```python
-import numpy as np
-
-from geometry import ElectrodeSet, MeshData
 from measurements import build_measurement_operator
 
-volume_mesh = MeshData(
-    points=np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ]
-    ),
-    cells=np.array([[0, 1, 2, 3]], dtype=np.int64),
-    cell_type="tetra",
-)
-
-electrodes = ElectrodeSet(
-    positions=np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.25, 0.25, 0.25],
-        ]
-    ),
-    labels=["E1", "E2"],
-)
-
-op = build_measurement_operator(
+operator = build_measurement_operator(
     mesh=volume_mesh,
     electrodes=electrodes,
     reference="average",
+    sparse=True,
+    surface_mesh=surface_mesh,
 )
 
-u = np.array([0.0, 1.0, 2.0, 3.0])
-y_raw = op.evaluate_raw(u)
-g = op.evaluate(u)
-M = op.matrix()
+raw = operator.evaluate_raw(nodal_values)
+referenced = operator.evaluate(nodal_values)
+P = operator.raw_matrix()
+M = operator.matrix()
 ```
 
-Поддержанные reference-системы:
+Supported references:
 
-- `"none"`: без изменения значений;
-- `"average"`: вычитание среднего по электродам;
-- `"single"`: вычитание значения выбранного электрода `reference_index`.
+- `none`: unchanged values;
+- `average`: subtract the electrode mean;
+- `single`: subtract the electrode selected by `reference_index`.
 
-## Электроды вне volume mesh
+For pure-Neumann Green solves, measurement rows must sum to zero. Average and valid single references satisfy this condition; none generally does not.
 
-`build_measurement_operator` по умолчанию проверяет электроды и центрально проецирует те, которые лежат вне торса, на поверхность:
+## Outside electrodes
+
+`build_measurement_operator` can centrally project electrodes outside the tetra volume onto a supplied triangle surface or an inferred tetra boundary.
 
 ```python
-op = build_measurement_operator(
-    mesh=volume_mesh,
-    electrodes=electrodes,
-    surface_mesh=surface_mesh,  # optional
-)
+from measurements import central_project_electrodes_to_surface
 
-print(op.metadata["electrode_projection"])
+projected, report = central_project_electrodes_to_surface(
+    volume_mesh,
+    electrodes,
+    surface_mesh=surface_mesh,
+)
 ```
 
-Если `surface_mesh` не передан, boundary triangles извлекаются из tetra volume mesh. Проекция идет от центра volume mesh через внешний электрод к первому пересечению с поверхностью.
+`TetraVolumeLocator` caches volume geometry and a KD-tree for repeated inside checks. `CentralSurfaceProjector` caches triangle geometry for central ray projection. Pass reusable instances explicitly when projecting several electrode sets on one geometry.
 
-Для больших сеток projection использует production locator objects:
+`report.surface_cell_ids[i] == -1` normally means electrode `i` was left unchanged by `project_only_outside=True`; inspect `projected_mask` as well.
 
-- `TetraVolumeLocator` кэширует bbox, tetra centroids и `cKDTree` для repeated inside checks;
-- `CentralSurfaceProjector` кэширует surface triangles для центральной проекции.
-
-Их можно передать в `central_project_electrodes_to_surface(...)` явно, если несколько наборов электродов проецируются на одну геометрию.
-
-`ElectrodeProjectionReport.surface_cell_ids[i] == -1` обычно означает, что электрод не изменялся при `project_only_outside=True`; проверяйте `projected_mask` вместе с id. Inside lookup ускорен locator object, но central ray projection всё ещё проверяет surface triangles для каждого проецируемого электрода.
+Measurement matrices remain in MeshData node ordering after projection. Forward and Green adapters apply the DOLFINx node-to-DOF mapping.

@@ -45,25 +45,25 @@ verification -> convergence and consistency tests
 performance  -> timing, memory and scaling profiles
 ```
 
-Это схема потока данных, а не жёсткая цепочка импортов. Например, `sources` содержит numpy-геометрию и адаптер к уже созданному FEM solver, а `measurements` может работать полностью без DOLFINx.
+This is a data-flow diagram, not a strict import chain. For example, `sources` contains numpy geometry plus an adapter for an existing FEM solver, while `measurements` can operate entirely without DOLFINx.
 
 ## Module responsibilities
 
 ### geometry
 
-Хранит геометрию без зависимости от FEniCSx: узлы, connectivity, physical tags, электроды, source region и агрегат `TorsoGeometry`.
+Stores geometry without a FEniCSx dependency: nodes, connectivity, physical tags, electrodes, source regions, and the `TorsoGeometry` aggregate.
 
 ### fem
 
-Преобразует `MeshData` в DOLFINx mesh, создаёт scalar P1 function space, собирает stiffness matrix `K`, настраивает PETSc constant nullspace и решает системы с несколькими RHS. Здесь же находятся кэшируемые node↔DOF mapping и local-cell `DOLFINxP1TetraLocator`.
+Converts `MeshData` into a DOLFINx mesh, creates a scalar P1 function space, assembles stiffness matrix `K`, configures the PETSc constant nullspace, and solves systems with multiple RHS vectors. It also owns the cached node-to-DOF mapping and local-cell `DOLFINxP1TetraLocator`.
 
 ### sources
 
-Описывает `PointDipole`, геометрию P1 tetra и сборку дипольного RHS. Numpy-сборка использует MeshData node ordering; FEM-адаптер собирает значения непосредственно в DOLFINx DOF ordering.
+Defines `PointDipole`, P1 tetra geometry, and dipole RHS assembly. Numpy assembly uses MeshData node ordering; the FEM adapter writes directly in DOLFINx DOF ordering.
 
 ### measurements
 
-Строит interpolation matrix `P` и reference matrix `R`:
+Builds interpolation matrix `P` and reference matrix `R`:
 
 ```text
 y_raw = P u
@@ -72,7 +72,7 @@ g = R P u
 
 ### forward
 
-Компонует готовые слои:
+Composes the existing layers:
 
 ```text
 source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> export
@@ -80,81 +80,81 @@ source -> rhs -> solve -> nodal values -> measurements -> ForwardResult -> expor
 
 ### green
 
-Преобразует строки `M = R @ P` в совместимые Neumann RHS, решает Green-задачи на той же stiffness matrix и собирает `A[j, i, :] = grad G_i(x_j)`. Transfer matrix предсказывает измерения как `g = A_j p`; знак контролируется FEM/Green consistency diagnostic.
+Converts rows of `M = R @ P` into compatible Neumann RHS vectors, solves Green problems on the same stiffness matrix, and assembles `A[j, i, :] = grad G_i(x_j)`. The transfer matrix predicts measurements as `g = A_j p`; FEM/Green consistency diagnostics verify the sign.
 
 ### inverse
 
-Использует готовый `GreenTransferMatrix` и observed measurements. Для каждого candidate решает маленькую Tikhonov/LS-задачу на три компоненты момента и выбирает минимальный residual. Модуль не реализует multiple dipoles и не меняет sign convention.
+Uses an existing `GreenTransferMatrix` and observed measurements. For each candidate it solves a small Tikhonov/LS problem for three moment components and selects the minimum residual. The module does not implement multiple dipoles or alter the sign convention.
 
 ### benchmark
 
-Комбинирует geometry, source sets, electrode subsets и noise models в forward experiments. Inverse benchmark consumes `ForwardBenchmarkResult` плюс `GreenTransferMatrix` и сохраняет localization/moment/residual metrics.
+Combines geometry, source sets, electrode subsets, and noise models in forward experiments. The inverse benchmark consumes a `ForwardBenchmarkResult` plus a `GreenTransferMatrix` and records localization, moment, and residual metrics.
 
 ### verification
 
-Содержит smooth manufactured solution, unit-cube refinement и convergence-report utilities. Модуль не участвует в production solve.
+Contains a smooth manufactured solution, unit-cube refinement, and convergence-report utilities. It does not participate in production solves.
 
 ### performance
 
-Предоставляет timers, memory snapshots, report writers и profiling CLIs. Он измеряет существующие stages и не меняет математическое поведение.
+Provides timers, memory snapshots, report writers, and profiling CLIs. It measures existing stages without changing mathematical behavior.
 
 ## Important separation
 
-- `geometry` не импортирует FEniCSx и остаётся пригодным для preprocessing и numpy-тестов.
-- `fem` владеет DOLFINx/PETSc solver objects и временем жизни матрицы/KSP.
-- `sources` и `measurements` имеют numpy-only core. Их FEM-адаптеры принимают уже созданные DOLFINx-объекты.
-- `forward` не пересобирает матрицу: он использует существующий `NeumannPoissonSolver`. Экспорт через `dolfinx.io` импортируется лениво.
-- `green` использует numpy/scipy measurement matrices, но создаёт Green RHS через проверенный node-to-dof mapping.
-- `inverse` не зависит от DOLFINx напрямую: он работает с numpy transfer matrices и measurement vectors.
-- `benchmark` не строит GreenTransferMatrix внутри inverse runner; он принимает готовый transfer, чтобы sweeps по noise/electrodes/lambda не пересобирали Green-базис без необходимости.
+- `geometry` does not import FEniCSx and remains suitable for preprocessing and numpy tests.
+- `fem` owns DOLFINx/PETSc solver objects and the matrix/KSP lifetime.
+- `sources` and `measurements` have numpy-only cores. Their FEM adapters accept already-created DOLFINx objects.
+- `forward` does not reassemble the matrix; it uses an existing `NeumannPoissonSolver`. Export imports `dolfinx.io` lazily.
+- `green` uses numpy/scipy measurement matrices but creates Green RHS vectors through a verified node-to-DOF mapping.
+- `inverse` has no direct DOLFINx dependency; it operates on numpy transfer matrices and measurement vectors.
+- `benchmark` does not build a Green transfer matrix inside the inverse runner. It accepts an existing transfer so noise/electrode/lambda sweeps do not rebuild the Green basis unnecessarily.
 
 ## Data ownership and ordering boundaries
 
 ### Nodes and DOFs
 
-`MeshData.points[node_id]` и `dolfinx.fem.Function.x.array[dof_id]` используют разные пространства индексов. Совпадение integer ids не гарантируется.
+`MeshData.points[node_id]` and `dolfinx.fem.Function.x.array[dof_id]` use different index spaces. Equal integer ids are not guaranteed.
 
-Нельзя копировать numpy-вектор, собранный по `MeshData node_id`, напрямую в PETSc/FEniCSx vector без проверенного отображения.
+Do not copy a numpy vector assembled by `MeshData node_id` directly into a PETSc/FEniCSx vector without a verified mapping.
 
 ### Cells
 
-`MeshData cell_id` и локальный `DOLFINx cell_id` также могут различаться. На реальной `torso.msh` это различие наблюдается после создания DOLFINx mesh.
+`MeshData cell_id` and local `DOLFINx cell_id` may also differ. This difference is observable on real torso meshes after DOLFINx mesh creation.
 
-Поэтому PETSc RHS точечного диполя по умолчанию ищет ячейку по `source.position` в DOLFINx ordering. Поиск использует кэшированный `DOLFINxP1TetraLocator`: KD-tree по центрам задаёт кандидатов, а барицентрическая проверка подтверждает принадлежность. Явный аргумент `cell_id` для PETSc-адаптера означает local DOLFINx cell id.
+Therefore the PETSc point-dipole RHS locates the cell from `source.position` in DOLFINx ordering by default. The cached `DOLFINxP1TetraLocator` uses a centroid KD-tree for candidates and barycentric containment for verification. An explicit `cell_id` argument to the PETSc adapter means a local DOLFINx cell id.
 
-`SourceRegion.candidate_cell_ids` всегда хранит MeshData cell ids. В `GreenTransferMatrix.candidate_cell_ids` хранятся уже найденные local DOLFINx cell ids. Эти массивы нельзя взаимозаменять.
+`SourceRegion.candidate_cell_ids` always stores MeshData cell ids. `GreenTransferMatrix.candidate_cell_ids` stores located local DOLFINx cell ids. These arrays are not interchangeable.
 
 ## Physical tags
 
-Внутренняя конвенция:
+Internal convention:
 
 ```python
 field_data: dict[str, tuple[int, int]]
 # name -> (dim, tag)
 ```
 
-Она соответствует порядку Gmsh API. `meshio` возвращает `(tag, dim)`, и `read_gmsh_meshio` преобразует пары при импорте.
+This matches Gmsh API ordering. `meshio` returns `(tag, dim)`, and `read_gmsh_meshio` converts each pair during import.
 
 ## Pure Neumann problem
 
-Stiffness matrix чистой задачи Неймана имеет константное ядро. Потенциал определён с точностью до добавления константы. `fem` прикрепляет PETSc `NullSpace`, проверяет/проецирует RHS и после решения фиксирует gauge вычитанием среднего.
+The pure-Neumann stiffness matrix has a constant nullspace. Potential is defined only up to an additive constant. `fem` attaches a PETSc `NullSpace`, checks/projects the RHS, and fixes the gauge after solving by removing the mean.
 
-Average-reference измерений дополнительно инвариантен к константному сдвигу потенциала.
+Average-referenced measurements are also invariant to a constant potential shift.
 
 ## Units and coordinates
 
-`MeshData.points`, `ElectrodeSet.positions`, `SourceRegion.candidate_points` и `PointDipole.position` должны использовать одну coordinate frame и одни единицы. Значение `sigma`, localization thresholds и distance diagnostics интерпретируются в согласованных с этой системой единицах; автоматической конверсии mm/m нет.
+`MeshData.points`, `ElectrodeSet.positions`, `SourceRegion.candidate_points`, and `PointDipole.position` must use one coordinate frame and unit system. `sigma`, localization thresholds, and distance diagnostics must be interpreted consistently; no automatic mm/m conversion is performed.
 
 ## Cached spatial data
 
-Один `NeumannPoissonSolver` владеет кэшами, связанными с созданным DOLFINx mesh:
+A single `NeumannPoissonSolver` owns caches associated with its DOLFINx mesh:
 
 - `p1_node_dof_mapping()` — serial scalar-P1 permutation MeshData node ↔ DOLFINx dof;
-- `p1_tetra_locator()` — dof coordinates, local cell dofs/vertices/centers и KD-tree;
-- stiffness matrix и KSP setup для всех forward/Green RHS.
+- `p1_tetra_locator()` - DOF coordinates, local cell DOFs/vertices/centers, and a KD-tree;
+- the stiffness matrix and KSP setup for all forward/Green RHS vectors.
 
-Кэши действительны только для этого solver и очищаются в `solver.destroy()`. Текущий locator ищет owned local cells; distributed global point ownership остаётся отдельной задачей.
+Caches are valid only for that solver and are cleared by `solver.destroy()`. The current locator searches owned local cells; distributed global point ownership remains a separate problem.
 
 ## Verification layer
 
-`verification` не участвует в production pipeline. Он предоставляет unit-cube meshes, analytic/manufactured functions и convergence reports для тестов FEM/forward. Это разделение позволяет проверять smooth FEM convergence независимо от сингулярного point-dipole solution.
+`verification` does not participate in the production pipeline. It provides unit-cube meshes, analytic/manufactured functions, and convergence reports for FEM/forward tests. This separation checks smooth FEM convergence independently from the singular point-dipole solution.

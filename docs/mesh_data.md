@@ -1,50 +1,50 @@
-# MeshData: Gmsh/meshio сетки с physical groups
+# MeshData: Gmsh/meshio meshes with physical groups
 
-`geometry.mesh_model.MeshData` хранит сетки, прочитанные из Gmsh через `meshio`, вместе с physical groups. Этот слой нужен, когда в одном файле лежат разные блоки ячеек: например `tetra` для объема торса и `triangle` для поверхности.
+`geometry.mesh_model.MeshData` stores meshes read from Gmsh through `meshio` together with physical groups. This layer is useful when one file contains different cell blocks, such as `tetra` for the torso volume and `triangle` for its surface.
 
-Для downstream-кода, которому нужен один конкретный блок, multi-block `MeshData` преобразуется в single-block `MeshData` через `to_mesh_data(...)`.
+Downstream code that needs one specific block converts a multi-block `MeshData` into a single-block `MeshData` through `to_mesh_data(...)`.
 
-## Основные сущности
+## Main entities
 
-- `MeshData`: единый контейнер для координат, cell blocks, physical tags и metadata.
-- `read_gmsh_meshio(path, dim)`: чтение `.msh` через `meshio`.
-- `_field_data_to_tuples(field_data)`: внутренняя конвертация `meshio.field_data`.
+- `MeshData`: unified container for coordinates, cell blocks, physical tags, and metadata.
+- `read_gmsh_meshio(path, dim)`: reads `.msh` through `meshio`.
+- `_field_data_to_tuples(field_data)`: internal conversion of `meshio.field_data`.
 
-## Внутренняя конвенция `field_data`
+## Internal `field_data` convention
 
-Внутри проекта `field_data` всегда хранится в формате Gmsh API:
+Within the project, `field_data` always uses Gmsh API ordering:
 
 ```python
 field_data: dict[str, tuple[int, int]]
 # name -> (dim, tag)
 ```
 
-Примеры:
+Examples:
 
 ```python
 field_data["domain"] == (3, 1)    # 3D volume group, tag=1
 field_data["boundary"] == (2, 2)  # 2D surface group, tag=2
 ```
 
-Эта конвенция важна: первый элемент пары это геометрическая размерность physical group, второй элемент это physical tag.
+This convention matters: the first pair element is the physical group's geometric dimension, and the second is the physical tag.
 
-## Отличие от `meshio`
+## Difference from `meshio`
 
-`meshio` обычно возвращает `field_data` в другом порядке:
+`meshio` usually returns `field_data` in the opposite order:
 
 ```text
 # meshio convention
 name -> (tag, dim)
 ```
 
-Поэтому `read_gmsh_meshio()` вызывает `_field_data_to_tuples()` и переворачивает пары:
+Therefore `read_gmsh_meshio()` calls `_field_data_to_tuples()` and reverses each pair:
 
 ```text
 meshio:   (tag, dim)
 internal: (dim, tag)
 ```
 
-Например:
+For example:
 
 ```python
 from geometry.mesh_model import _field_data_to_tuples
@@ -61,9 +61,9 @@ assert converted["domain"] == (3, 1)
 assert converted["boundary"] == (2, 2)
 ```
 
-Если вы создаете `MeshData` вручную, передавайте уже внутренний порядок `(dim, tag)`.
+When creating `MeshData` manually, provide the internal `(dim, tag)` order.
 
-## Структура multi-block `MeshData`
+## Multi-block `MeshData` structure
 
 ```python
 from geometry import MeshData
@@ -90,20 +90,20 @@ mesh = MeshData.from_cell_blocks(
 )
 ```
 
-Поля:
+Fields:
 
-- `dim`: рабочая размерность координат, обычно `2` или `3`.
-- `points`: массив узлов формы `(n_nodes, dim)`.
-- `cells`: connectivity активного блока.
-- `cell_type`: тип активного блока.
-- `cell_blocks`: словарь `cell_type -> connectivity`, например `"tetra"`, `"triangle"`, `"line"`.
-- `cell_tags`: словарь `cell_type -> physical tag per cell`.
-- `field_data`: словарь `physical_name -> (dim, tag)`.
-- `metadata`: произвольные метаданные.
+- `dim`: working coordinate dimension, usually `2` or `3`.
+- `points`: node array with shape `(n_nodes, dim)`.
+- `cells`: active-block connectivity.
+- `cell_type`: active block type.
+- `cell_blocks`: `cell_type -> connectivity`, such as `"tetra"`, `"triangle"`, or `"line"`.
+- `cell_tags`: `cell_type -> physical tag per cell`.
+- `field_data`: `physical_name -> (dim, tag)`.
+- `metadata`: arbitrary metadata.
 
-Если для блока ячеек нет `cell_tags`, контейнер создаст нулевые tags для всех ячеек этого блока.
+If a cell block has no `cell_tags`, the container creates zero tags for all cells in that block.
 
-Для совместимости доступны aliases:
+Compatibility aliases:
 
 - `mesh.coords == mesh.points`;
 - `mesh.dim == mesh.geometric_dim`.
@@ -115,23 +115,23 @@ assert mesh.physical_dimension("domain") == 3
 assert mesh.physical_tag("domain") == 1
 ```
 
-`physical_dimension(name)` возвращает первый элемент `field_data[name]`.
+`physical_dimension(name)` returns the first element of `field_data[name]`.
 
-`physical_tag(name)` возвращает второй элемент `field_data[name]`.
+`physical_tag(name)` returns the second element of `field_data[name]`.
 
-Если physical group неизвестна, методы бросают `KeyError` со списком доступных групп.
+For an unknown physical group, these methods raise `KeyError` with the available groups.
 
-## Фильтрация cell blocks
+## Filtering cell blocks
 
-`cell_block(cell_type, physical_name=None)` возвращает connectivity-массив для указанного типа ячеек. Если передан `physical_name`, ячейки фильтруются по physical tag:
+`cell_block(cell_type, physical_name=None)` returns the connectivity array for a cell type. If `physical_name` is supplied, cells are filtered by physical tag:
 
 ```python
 domain_cells = mesh.cell_block("tetra", physical_name="domain")
 ```
 
-Важно: фильтрация идет именно по tag, а не по dimension.
+Filtering is by tag, not by dimension.
 
-Эквивалентная логика:
+Equivalent logic:
 
 ```python
 tag = mesh.physical_tag("domain")
@@ -139,9 +139,9 @@ tags = mesh.cell_tags["tetra"]
 domain_cells = mesh.cell_blocks["tetra"][tags == tag]
 ```
 
-## Конвертация в `MeshData`
+## Conversion to single-block `MeshData`
 
-`to_mesh_data()` превращает один cell block в легкий контейнер `MeshData`.
+`to_mesh_data()` converts one cell block into a lightweight `MeshData` container.
 
 ```python
 domain = mesh.to_mesh_data(
@@ -155,18 +155,18 @@ assert domain.metadata["physical_dimension"] == 3
 assert domain.metadata["physical_tag"] == 1
 ```
 
-Если `physical_name` не передан, в `MeshData` попадет весь блок выбранного `cell_type`.
+If `physical_name` is omitted, the result contains the entire selected `cell_type` block.
 
-Metadata результата содержит:
+Result metadata contains:
 
 - `source`: `"MeshData"`;
-- `cell_type`: выбранный тип ячеек;
-- `physical_name`: имя группы или `None`;
-- `field_data`: внутренний словарь physical groups;
-- `physical_dimension`: только если передан `physical_name`;
-- `physical_tag`: только если передан `physical_name`.
+- `cell_type`: selected cell type;
+- `physical_name`: group name or `None`;
+- `field_data`: internal physical-group dictionary;
+- `physical_dimension`: present only when `physical_name` is supplied;
+- `physical_tag`: present only when `physical_name` is supplied.
 
-## Чтение `.msh`
+## Reading `.msh`
 
 ```python
 from geometry import read_gmsh_meshio
@@ -178,7 +178,7 @@ print(mesh.physical_dimension("domain"))
 print(mesh.physical_tag("domain"))
 ```
 
-Для текущей тестовой сетки ожидается:
+For a mesh with the standard example tags:
 
 ```python
 mesh.field_data["domain"] == (3, 1)
@@ -187,7 +187,7 @@ mesh.physical_dimension("domain") == 3
 mesh.physical_tag("domain") == 1
 ```
 
-Получение объема и поверхности:
+Extracting volume and surface:
 
 ```python
 volume_mesh = mesh.to_mesh_data(
@@ -201,11 +201,11 @@ surface_mesh = mesh.to_mesh_data(
 )
 ```
 
-Не привязывайте production-код к конкретным counts из repository mesh files: они меняются при refinement и remeshing.
+Do not tie production code to exact counts in repository mesh files; they change under refinement and remeshing.
 
 ### Surface point arrays
 
-`to_mesh_data("triangle", ...)` сохраняет исходный global point array и connectivity выбранных triangles. Поэтому `surface_mesh.num_points` может совпадать с `volume_mesh.num_points`, хотя surface triangles используют существенно меньше вершин:
+`to_mesh_data("triangle", ...)` preserves the original global point array and selected triangle connectivity. Therefore `surface_mesh.num_points` may equal `volume_mesh.num_points` even though surface triangles use substantially fewer vertices:
 
 ```python
 used_surface_vertex_ids = np.unique(surface_mesh.cells.ravel())
@@ -213,9 +213,9 @@ print("point array size:", surface_mesh.num_points)
 print("used surface vertices:", used_surface_vertex_ids.size)
 ```
 
-Такое представление сохраняет global node ids и не является ошибкой. Для памяти можно позднее добавить explicit compaction helper, но нельзя неявно перенумеровывать nodes там, где downstream metadata зависит от исходных ids.
+This representation preserves global node ids and is not an error. An explicit compaction helper could reduce memory, but nodes must not be renumbered implicitly when downstream metadata depends on original ids.
 
-## Типовой пайплайн
+## Typical pipeline
 
 ```python
 import numpy as np
@@ -263,16 +263,16 @@ print(report.is_valid)
 print(report.summary)
 ```
 
-## Частые ошибки
+## Common mistakes
 
-Если `cell_block("tetra", physical_name="domain")` возвращает 0 ячеек, проверьте:
+If `cell_block("tetra", physical_name="domain")` returns zero cells, verify:
 
-- что `field_data["domain"]` хранится как `(dim, tag)`, например `(3, 1)`;
-- что `cell_tags["tetra"]` содержит physical tag, например `1`;
-- что данные пришли через `read_gmsh_meshio()`, если исходный источник это `meshio`;
-- что вы не передали вручную meshio-порядок `(tag, dim)` в `MeshData`.
+- `field_data["domain"]` uses `(dim, tag)`, for example `(3, 1)`;
+- `cell_tags["tetra"]` contains the physical tag, for example `1`;
+- data came through `read_gmsh_meshio()` when the source was `meshio`;
+- you did not manually pass meshio's `(tag, dim)` order into `MeshData`.
 
-Если нужна вся сетка без фильтрации physical group:
+To use the full mesh without physical-group filtering:
 
 ```python
 all_tetra = mesh.cell_block("tetra")

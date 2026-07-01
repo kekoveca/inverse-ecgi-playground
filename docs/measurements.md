@@ -2,26 +2,26 @@
 
 ## Purpose
 
-`measurements` преобразует nodal P1 potential в значения на электродах и применяет reference-систему.
+`measurements` converts a nodal P1 potential into electrode values and applies a reference system.
 
 ```text
 nodal values u -> raw electrode values y_raw -> referenced values g
 ```
 
-Основная реализация использует numpy/scipy и не требует DOLFINx.
+The core implementation uses numpy/scipy and does not require DOLFINx.
 
 ## Point location
 
-- `locate_points_in_tetra_mesh(mesh, points)` возвращает MeshData cell ids и barycentric coordinates.
-- `locate_electrodes_in_mesh(mesh, electrodes)` применяет тот же алгоритм к `ElectrodeSet.positions`.
-- `central_project_electrodes_to_surface(...)` центрально проецирует внешние электроды на surface mesh или на boundary, извлеченный из tetra volume mesh.
-- `TetraVolumeLocator` и `CentralSurfaceProjector` кэшируют spatial data для repeated inside checks и central ray projection.
+- `locate_points_in_tetra_mesh(mesh, points)` returns MeshData cell ids and barycentric coordinates.
+- `locate_electrodes_in_mesh(mesh, electrodes)` applies the same algorithm to `ElectrodeSet.positions`.
+- `central_project_electrodes_to_surface(...)` centrally projects outside electrodes onto a surface mesh or a boundary extracted from the tetra volume mesh.
+- `TetraVolumeLocator` and `CentralSurfaceProjector` cache spatial data for repeated inside checks and central ray projection.
 
-Геометрия тетраэдра переиспользуется из `sources`; отдельной копии barycentric math в `measurements` нет.
+Tetrahedron geometry is reused from `sources`; `measurements` does not duplicate barycentric mathematics.
 
-Возвращаемые cell ids принадлежат MeshData ordering.
+Returned cell ids use MeshData ordering.
 
-`locate_points_in_tetra_mesh` остается строгим и выбрасывает `ValueError` для точек вне volume mesh. Для электродов доменная логика мягче: `build_measurement_operator` по умолчанию вызывает центральную проекцию для электродов, которые не лежат внутри торса. Проекция строит луч от центра volume mesh через внешний электрод и берет первое пересечение с surface mesh. Если `surface_mesh` не передан, boundary triangles извлекаются из tetra mesh.
+`locate_points_in_tetra_mesh` remains strict and raises `ValueError` for points outside the volume mesh. Electrode handling is more permissive: by default, `build_measurement_operator` centrally projects electrodes that are outside the torso. Projection casts a ray from the volume center through the outside electrode and takes the first surface intersection. If `surface_mesh` is omitted, boundary triangles are extracted from the tetra mesh.
 
 ```python
 from measurements import central_project_electrodes_to_surface
@@ -36,10 +36,10 @@ print(report.projected_indices)
 print(report.max_projection_distance)
 ```
 
-Для больших meshes projection использует locator/projector objects внутри
-`central_project_electrodes_to_surface`, чтобы не строить KDTree по volume cells
-для каждого электрода отдельно. Если нужно выполнить несколько projection runs
-на одной геометрии, эти objects можно создать и передать явно:
+For large meshes, projection uses locator/projector objects inside
+`central_project_electrodes_to_surface` so it does not rebuild a volume-cell
+KD-tree for every electrode. For multiple projection runs on one geometry,
+create and pass these objects explicitly:
 
 ```python
 from measurements import CentralSurfaceProjector, TetraVolumeLocator
@@ -56,24 +56,24 @@ projected_electrodes, report = central_project_electrodes_to_surface(
 )
 ```
 
-`TetraVolumeLocator` ускоряет inside checks через cached tetra geometry, centroids и KD-tree. `CentralSurfaceProjector` кэширует triangle array, но текущий ray intersection всё ещё проверяет surface triangles для каждого реально проецируемого электрода. Переиспользуйте оба objects между runs на одной геометрии.
+`TetraVolumeLocator` accelerates inside checks with cached tetra geometry, centroids, and a KD-tree. `CentralSurfaceProjector` caches the triangle array, but the current ray intersection still checks surface triangles for every electrode that is actually projected. Reuse both objects across runs on one geometry.
 
-В `ElectrodeProjectionReport`:
+In `ElectrodeProjectionReport`:
 
-- `projected_mask[i]` показывает, менялась ли позиция электрода;
-- `surface_cell_ids[i]` задан только для проецировавшихся электродов;
-- значение `-1` обычно означает «оставлен без изменения», а не ошибку поиска поверхности;
-- `projection_distances` и `max_projection_distance` следует включать в quality control реального эксперимента.
+- `projected_mask[i]` shows whether electrode `i` moved;
+- `surface_cell_ids[i]` is set only for projected electrodes;
+- `-1` usually means “left unchanged,” not a surface-search failure;
+- `projection_distances` and `max_projection_distance` should be part of real-experiment quality control.
 
 ## Interpolation matrix
 
-Для P1 tetra:
+For P1 tetrahedra:
 
 ```text
 y_raw = P u
 ```
 
-Каждая строка `P` содержит четыре barycentric weights в columns узлов содержащего тетраэдра.
+Each row of `P` contains four barycentric weights in the columns of the containing tetrahedron's nodes.
 
 ```python
 from measurements import build_point_interpolation_matrix
@@ -85,13 +85,13 @@ P = build_point_interpolation_matrix(
 )
 ```
 
-При `sparse=True` возвращается scipy CSR matrix. Если scipy недоступен, функция предупреждает и возвращает dense array.
+With `sparse=True`, the function returns a scipy CSR matrix. If scipy is unavailable, it warns and returns a dense array.
 
-`u` для этой матрицы должен быть представлен в **MeshData node ordering**. DOLFINx DOF ordering нельзя считать совпадающим без проверенного mapping.
+For this matrix, `u` must use **MeshData node ordering**. DOLFINx DOF ordering must not be assumed identical without a verified mapping.
 
 ## Reference systems
 
-Поддерживаются:
+Supported references:
 
 - `none`: `g = y`;
 - `average`: `g = y - mean(y)`;
@@ -104,11 +104,11 @@ g_average = apply_reference(y_raw, reference="average")
 g_single = apply_reference(y_raw, reference="single", reference_index=0)
 ```
 
-Reference matrix обозначается `R`.
+The reference matrix is denoted by `R`.
 
 ## MeasurementOperator
 
-Полный линейный оператор:
+The full linear operator is:
 
 ```text
 M = R @ P
@@ -132,18 +132,18 @@ P = op.raw_matrix()
 M = op.matrix()
 ```
 
-Методы:
+Methods:
 
 - `raw_matrix()` — `P`;
 - `matrix()` — `M = R @ P`;
 - `evaluate_raw()` — raw electrode values;
 - `evaluate()` — referenced values.
 
-Строки `M` используются как RHS vectors в модуле `green`: `K G_i = M_i^T`. Перед записью в DOLFINx Function они отображаются из MeshData node ordering в DOLFINx DOF ordering.
+Rows of `M` are used as RHS vectors in `green`: `K G_i = M_i^T`. Before writing them to a DOLFINx Function, they are mapped from MeshData node ordering to DOLFINx DOF ordering.
 
-Если электроды были спроецированы, summary доступен в `op.metadata["electrode_projection"]`.
+If electrodes were projected, the summary is available in `op.metadata["electrode_projection"]`.
 
-Measurement matrices всегда используют MeshData node ordering, независимо от того, были ли позиции спроецированы. Перестановка в DOLFINx DOF ordering выполняется в `forward`/`green`, а не внутри `MeasurementOperator`.
+Measurement matrices always use MeshData node ordering, regardless of whether positions were projected. Reordering into DOLFINx DOF ordering happens in `forward`/`green`, not inside `MeasurementOperator`.
 
 ### Green RHS compatibility
 
@@ -151,7 +151,7 @@ For pure-Neumann Green solves every row of `M` must sum to zero. `average` and v
 
 ## Constant potential test
 
-Average reference должен уничтожать константу:
+Average reference must eliminate a constant:
 
 ```python
 u_constant = np.full(volume_mesh.num_points, 5.0)
@@ -159,4 +159,4 @@ g = op.evaluate(u_constant)
 assert np.allclose(g, 0.0)
 ```
 
-Это соответствует инвариантности электродных измерений к gauge чистой задачи Неймана.
+This matches the invariance of electrode measurements to the pure-Neumann gauge.

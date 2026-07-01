@@ -1,95 +1,43 @@
-# forward
+# Forward module
 
-Полная документация: [../docs/forward.md](../docs/forward.md).
+Full guide: [../docs/forward.md](../docs/forward.md).
 
-`forward` собирает прямой pipeline для точечного диполя:
+`forward` composes the point-dipole RHS, Neumann Poisson solver, measurement operator, result object, and ParaView export:
 
 ```text
-PointDipole(x0, p)
-    -> assemble RHS
-    -> solve Neumann Poisson FEM
-    -> extract nodal potential
-    -> measure electrodes
-    -> ForwardResult
+PointDipole -> RHS -> FEM solve -> nodal potential -> measurements -> ForwardResult
 ```
 
-Модуль не собирает FEM-матрицу сам. Он использует готовый `fem.NeumannPoissonSolver`, RHS из `sources` и оператор измерений из `measurements`.
-
-## Минимальный пример
+## Example
 
 ```python
-from geometry import ElectrodeSet, read_gmsh_meshio
 from fem import NeumannPoissonSolver
+from forward import ForwardSolver, export_forward_result_to_vtx
 from sources import PointDipole
-from forward import ForwardSolver, export_forward_result_to_vtx, export_forward_result_to_xdmf
 
-tagged = read_gmsh_meshio("torso.msh", dim=3)
-
-volume_mesh = tagged.to_mesh_data(
-    cell_type="tetra",
-    physical_name="domain",
-)
-
-solver = NeumannPoissonSolver(
-    mesh=volume_mesh,
-    degree=1,
-    sigma=1.0,
-)
-
-electrodes = ElectrodeSet(
-    positions=...,  # shape (n_electrodes, 3)
-    labels=...,
-)
-
-forward = ForwardSolver(
-    poisson_solver=solver,
-    electrodes=electrodes,
-    reference="average",
-)
-
-source = PointDipole(
-    position=[...],
-    moment=[1.0, 0.0, 0.0],
-)
-
-result = forward.solve(source)
-print(result.measurements)
-
-export_forward_result_to_xdmf(
-    result,
-    "output/potential.xdmf",
-)
-
-export_forward_result_to_vtx(
-    result,
-    "output/potential.bp",
-)
+solver = NeumannPoissonSolver(volume_mesh, degree=1, sigma=1.0)
+try:
+    pipeline = ForwardSolver(solver, electrodes=electrodes, reference="average")
+    source = PointDipole(position=[0.0, 0.0, 0.0], moment=[0.0, 0.0, 1.0])
+    result = pipeline.solve(source)
+    export_forward_result_to_vtx(result, "output/potential.bp")
+finally:
+    solver.destroy()
 ```
 
-XDMF export может создать два файла: `.xdmf` и `.h5`. Открывать в ParaView нужно файл `.xdmf`.
+The stiffness matrix is assembled by `fem` and reused. DOLFINx DOF values are mapped into MeshData node ordering before `MeasurementOperator` evaluation.
 
-Если ParaView падает при открытии XDMF или показывает пустой результат, используйте VTX/BP export:
+## ParaView export
 
-```python
-from forward import export_forward_result_to_vtx
-
-export_forward_result_to_vtx(result, "output/potential.bp")
-```
-
-Для VTX export открывайте в ParaView `.bp` output.
-
-Для проверки размещения электродов можно экспортировать диагностический marker field:
+VTX/BP is the preferred format. XDMF may create both `.xdmf` and `.h5`; open the `.xdmf` file and keep both files together.
 
 ```python
-from forward import export_electrode_markers_to_vtx
+from forward import export_electrode_markers_to_vtx, export_forward_result_to_xdmf
 
+export_forward_result_to_xdmf(result, "output/potential.xdmf")
 export_electrode_markers_to_vtx(solver, electrodes, "output/electrodes.bp")
 ```
 
-`electrodes.bp` отмечает ближайшие FEM DOF к координатам электродов; это не отдельное point-cloud представление.
+`electrodes.bp` marks the nearest FEM DOF to each electrode. It is a diagnostic nodal field, not an exact point cloud.
 
-Для чистой задачи Неймана потенциал определен с точностью до константы. `fem` фиксирует gauge решения, а `average` reference дополнительно убирает произвольную константу из электродных измерений.
-
-Знак RHS задается в `sources` как `gradients_p1_tetra(vertices) @ moment`; current FEM/Green consistency tests подтверждают transfer sign `+1`.
-
-`ForwardSolver` переставляет DOLFINx dof values в MeshData node ordering через cached solver mapping перед применением `MeasurementOperator`. Source cell lookup использует cached `DOLFINxP1TetraLocator`.
+The pure-Neumann potential is defined only up to a constant. The FEM solver fixes a gauge, and average reference removes the constant from electrode measurements. Current FEM/Green tests confirm transfer sign `+1`.

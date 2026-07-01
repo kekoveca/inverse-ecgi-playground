@@ -1,46 +1,46 @@
 # FEM
 
-`fem` — DOLFINx/PETSc-backed ядро для scalar Poisson problem с чистыми условиями Неймана.
+`fem` is the DOLFINx/PETSc-backed core for scalar Poisson problems with pure Neumann boundary conditions.
 
 ## NeumannPoissonSolver
 
-`NeumannPoissonSolver` является публичным именем `FEMProblem`. Он собирает систему для
+`NeumannPoissonSolver` is the public alias of `FEMProblem`. It assembles the system for
 
 ```text
 -div(sigma grad(u)) = f
 ```
 
-с постоянной scalar conductivity `sigma` и однородным Neumann boundary condition. В MVP поддерживается только P1 Lagrange (`degree=1`).
+with constant scalar conductivity `sigma` and a homogeneous Neumann boundary condition. The MVP supports P1 Lagrange elements only (`degree=1`).
 
-Solver создаёт и хранит:
+The solver creates and stores:
 
 - DOLFINx mesh (`domain`);
 - function space (`V`);
 - stiffness matrix (`K`, alias `A`);
 - PETSc constant nullspace;
-- KSP solver, переиспользуемый для нескольких RHS.
-- кэшированный scalar-P1 node↔DOF mapping;
-- кэшированный local-cell tetra locator для source/candidate lookup.
+- a KSP solver reused for multiple RHS vectors;
+- a cached scalar-P1 node-to-DOF mapping;
+- a cached local-cell tetra locator for source/candidate lookup.
 
 ## Pure Neumann nullspace
 
-Для чистой задачи Неймана
+For a pure Neumann problem,
 
 ```text
 K 1 = 0
 ```
 
-поэтому решение определено с точностью до константы. Это математическое свойство задачи, а не ошибка сборки.
+so the solution is defined only up to a constant. This is a mathematical property, not an assembly error.
 
 `NeumannNullspaceHandler`:
 
-1. создаёт PETSc `NullSpace(constant=True)`;
-2. прикрепляет его к `K`;
-3. удаляет constant component из RHS;
-4. проверяет совместимость RHS;
-5. фиксирует gauge решения вычитанием среднего.
+1. creates a PETSc `NullSpace(constant=True)`;
+2. attaches it to `K`;
+3. removes the constant component from the RHS;
+4. checks RHS compatibility;
+5. fixes the solution gauge by removing the mean.
 
-Для совместимого RHS ожидается нулевая сумма в дискретном constant mode. `solve` по умолчанию выполняет проекцию и проверку.
+A compatible RHS has zero sum in the discrete constant mode. `solve` performs projection and validation by default.
 
 ## Mesh conversion
 
@@ -48,22 +48,22 @@ K 1 = 0
 geometry.MeshData -> dolfinx.mesh.Mesh -> P1 FunctionSpace
 ```
 
-Преобразование выполняет `create_dolfinx_mesh`.
+`create_dolfinx_mesh` performs the conversion.
 
 ### Critical ordering warning
 
-После преобразования не гарантируется:
+The following identities are not guaranteed after conversion:
 
 ```text
 MeshData node_id == DOLFINx dof_id
 MeshData cell_id == DOLFINx cell_id
 ```
 
-Не записывайте значения, индексированные по `MeshData`, напрямую в PETSc/FEniCSx vectors. Для cell-local операций используйте `V.dofmap.cell_dofs(dolfinx_cell_id)` и координаты `V.tabulate_dof_coordinates()`.
+Do not write values indexed by `MeshData` directly into PETSc/FEniCSx vectors. For cell-local operations, use `V.dofmap.cell_dofs(dolfinx_cell_id)` and `V.tabulate_dof_coordinates()`.
 
 ### Node-to-DOF mapping
 
-Для serial scalar P1 доступен coordinate-verified mapping:
+A coordinate-verified mapping is available for serial scalar P1 spaces:
 
 ```python
 mapping = solver.p1_node_dof_mapping()
@@ -71,7 +71,7 @@ node_to_dof = mapping.node_to_dof
 dof_to_node = mapping.dof_to_node
 ```
 
-`build_node_to_dof_map_p1(solver)` делегирует этому кэшу. Mapping используется `forward` и `green`, когда numpy operator в MeshData node ordering нужно связать с DOLFINx Function. В distributed MPI layout helper намеренно выбрасывает ошибку вместо предположения об ownership/ghost ids.
+`build_node_to_dof_map_p1(solver)` delegates to this cache. `forward` and `green` use the mapping when a numpy operator in MeshData node ordering must be connected to a DOLFINx Function. For distributed MPI layouts, the helper deliberately raises instead of guessing ownership or ghost ids.
 
 ### P1 tetra locator
 
@@ -82,7 +82,7 @@ cell_dofs, vertices = locator.cell_geometry(cell_ids)
 grads_phi = locator.basis_gradients(cell_ids)
 ```
 
-`DOLFINxP1TetraLocator` один раз кэширует dof coordinates, local cell dofs, vertices, centers и KD-tree. KD-tree лишь упорядочивает candidate cells; итоговое попадание всегда подтверждается barycentric containment test. Возвращаемые ids относятся к owned local DOLFINx cells. Поддерживается только scalar P1 tetra space.
+`DOLFINxP1TetraLocator` caches DOF coordinates, local cell DOFs, vertices, centers, and a KD-tree once. The KD-tree only orders candidate cells; a barycentric containment test always verifies the final match. Returned ids refer to owned local DOLFINx cells. Only scalar P1 tetra spaces are supported.
 
 ## Solver usage
 
@@ -104,13 +104,13 @@ finally:
     solver.destroy()
 ```
 
-`rhs` может быть `dolfinx.fem.Function`, PETSc `Vec` или поддерживаемый vector-like object. В примере решается тривиальная задача с нулевым RHS; для point dipole используйте `sources.assemble_point_dipole_rhs_petsc`.
+`rhs` may be a `dolfinx.fem.Function`, PETSc `Vec`, or supported vector-like object. The example solves the trivial zero-RHS problem; use `sources.assemble_point_dipole_rhs_petsc` for a point dipole.
 
-Матрица `K` и KSP setup не пересобираются между вызовами `solve`.
+Matrix `K` and the KSP setup are not rebuilt between `solve` calls.
 
 ## Diagnostics
 
-После сборки и решения доступен `solver.diagnostics`:
+`solver.diagnostics` is available after assembly and solving:
 
 ```python
 print(solver.diagnostics.ksp_type)
@@ -120,34 +120,34 @@ print(solver.diagnostics.residual_norm)
 print(solver.diagnostics.nullspace_test_passed)
 ```
 
-Положительный `converged_reason` означает успешную сходимость PETSc KSP. `nullspace_test_passed` показывает результат проверки constant nullspace при создании solver.
+A positive `converged_reason` indicates successful PETSc KSP convergence. `nullspace_test_passed` records the constant-nullspace check performed during solver creation.
 
 ## Resource lifetime
 
-PETSc objects освобождаются явно:
+PETSc objects are released explicitly:
 
 ```python
 solver.destroy()
 ```
 
-`destroy()` также сбрасывает FEM mapping/locator caches. Не переиспользуйте полученные locator/mapping objects после уничтожения solver.
+`destroy()` also clears FEM mapping/locator caches. Do not reuse locator or mapping objects after destroying the solver.
 
-В MPI-программе создание, solve и destroy должны выполняться согласованно всеми ranks communicator.
+In an MPI program, creation, solve, and destruction must be performed consistently by all ranks in the communicator.
 
 ## Manufactured solution convergence
 
-Гладкая проверка solver использует unit cube и
+The smooth solver check uses the unit cube and
 
 ```text
 u_exact = cos(2 pi x) cos(2 pi y) cos(2 pi z)
 -Delta u_exact = 12 pi^2 u_exact
 ```
 
-Нормальная производная равна нулю на всех гранях unit cube, поэтому функция совместима с homogeneous Neumann boundary condition.
+The normal derivative is zero on every unit-cube face, so the function is compatible with the homogeneous Neumann boundary condition.
 
-`test_poisson_manufactured_solution.py` решает задачу на refinement levels `n=4, 8, 16`, выравнивает constant gauge и проверяет:
+`test_poisson_manufactured_solution.py` solves refinement levels `n=4, 8, 16`, aligns the constant gauge, and checks:
 
-- монотонное уменьшение L2 error;
-- минимальный наблюдаемый rate больше `1.0`.
+- monotonically decreasing L2 error;
+- minimum observed rate greater than `1.0`.
 
-Для P1 на smooth solution ожидается близкий к quadratic L2 rate, но test использует мягкий threshold, чтобы не зависеть от coarse-grid и solver details.
+For P1 on a smooth solution, the L2 rate should be close to quadratic, but the test uses a soft threshold to avoid dependence on coarse-grid and solver details.

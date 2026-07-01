@@ -70,7 +70,7 @@ finally:
     solver.destroy()
 ```
 
-Откройте `.bp` outputs в ParaView.
+Open the `.bp` outputs in ParaView.
 
 ## Example 5: debug source position
 
@@ -109,11 +109,11 @@ python3 examples/forward_pipeline.py \
   --moment 0 0 1
 ```
 
-Скрипт создаёт `potential.bp`, `potential.xdmf`, `rhs.bp`, `source_marker.bp` и JSON summary в `output/`.
+The script creates `potential.bp`, `potential.xdmf`, `rhs.bp`, `source_marker.bp`, and a JSON summary in `output/`.
 
 ## Full forward -> Green -> inverse tutorial
 
-Для реальной Gmsh geometry используйте готовый tutorial:
+For a real Gmsh geometry, use the full tutorial:
 
 Required physical groups:
 
@@ -132,7 +132,7 @@ python3 examples/full_inverse_experiment_torso.py \
   --lambda-reg 1e-10
 ```
 
-Он читает physical groups, размещает/проверяет электроды, решает forward и Green systems, строит transfer matrix, выполняет inverse reconstruction и сохраняет reports/ParaView fields. Вариант `full_inverse_experiment_torso_clipped_sphere_electrodes.py` создаёт исходные электроды квазиравномерно на clipped circumscribed sphere и затем центрально проецирует их на торс.
+It reads physical groups, places and checks electrodes, solves forward and Green systems, builds the transfer matrix, performs inverse reconstruction, and saves reports and ParaView fields. The `full_inverse_experiment_torso_clipped_sphere_electrodes.py` variant creates initial electrodes quasi-uniformly on a clipped circumscribed sphere and then centrally projects them onto the torso.
 
 Key arguments:
 
@@ -155,7 +155,7 @@ python3 scripts/profile_components.py \
   --output output/green_transfer_profile
 ```
 
-Этот profile использует synthetic DOLFINx functions и измеряет transfer construction отдельно от стоимости Green solves.
+This profile uses synthetic DOLFINx functions and measures transfer construction separately from Green solve cost.
 
 ## Common failures
 

@@ -2,17 +2,17 @@
 
 ## ParaView shows weird artifacts
 
-Проверяйте pipeline по слоям:
+Check the pipeline layer by layer:
 
-1. число и значения ненулевых RHS dofs;
-2. положение источника в DOLFINx cell ordering;
-3. соответствие MeshData/DOLFINx cell ids;
-4. локальный DOF ordering;
-5. source marker в ParaView;
-6. положения электродов и barycentric interpolation;
+1. count and values of nonzero RHS DOFs;
+2. source position in DOLFINx cell ordering;
+3. MeshData/DOLFINx cell-id correspondence;
+4. local DOF ordering;
+5. source marker in ParaView;
+6. electrode positions and barycentric interpolation;
 7. PETSc convergence/nullspace diagnostics.
 
-Не меняйте знак RHS, пока не исключены ошибки ordering и location.
+Do not change the RHS sign until ordering and location errors have been ruled out.
 
 ## Check RHS localization
 
@@ -26,7 +26,7 @@ print(info["local_rhs"])
 print(info["local_rhs_sum"])
 ```
 
-Для scalar P1 tetra local RHS записывается в четыре cell dofs. Для общего направления момента ожидаются четыре ненулевых значения; специальное направление может дать точный ноль на отдельном dof. Сумма local RHS должна быть близка к нулю.
+For a scalar P1 tetrahedron, the local RHS is written to four cell DOFs. Four nonzero values are expected for a general moment direction; a special direction may produce an exact zero at one DOF. The local RHS sum must be close to zero.
 
 ## Check source location
 
@@ -46,9 +46,9 @@ print(info["dof_cell_center"])
 print(info["ordering_warning"])
 ```
 
-`source.cell_id` относится к MeshData ordering и по умолчанию не используется PETSc assembler.
+`source.cell_id` belongs to MeshData ordering and is not used by the PETSc assembler by default.
 
-Для нескольких точек можно проверить cached locator напрямую:
+For multiple points, inspect the cached locator directly:
 
 ```python
 locator = solver.p1_tetra_locator()
@@ -56,7 +56,7 @@ cell_ids, barycentric = locator.locate_points(points, return_barycentric=True)
 print(locator.metadata)
 ```
 
-Возвращаемые ids локальны для DOLFINx solver, а не для `MeshData`.
+Returned ids are local to the DOLFINx solver, not to `MeshData`.
 
 ## Export source marker
 
@@ -72,7 +72,7 @@ export_dolfinx_function_to_vtx(
 )
 ```
 
-Откройте `output/source_marker.bp` в ParaView. Marker использует P1 nodal values на dofs выбранной ячейки, поэтому его support может быть виден и на соседних cells, разделяющих эти вершины.
+Open `output/source_marker.bp` in ParaView. The marker uses P1 nodal values on the selected cell's DOFs, so its support may also be visible on neighboring cells that share those vertices.
 
 ## Check mesh/cell ordering
 
@@ -85,9 +85,9 @@ print(report["mean_diff"])
 print(report["worst_cell_id"])
 ```
 
-Если differences существенно больше floating-point tolerance, одинаковые integer ids относятся к разным ячейкам. Не используйте MeshData cell ids как DOLFINx ids.
+If differences are substantially larger than floating-point tolerance, equal integer ids refer to different cells. Do not use MeshData cell ids as DOLFINx ids.
 
-На текущей `torso.msh` такое различие было подтверждено диагностикой: source cell id в MeshData и DOLFINx различаются.
+This difference has been confirmed on torso meshes: source cell ids in MeshData and DOLFINx can differ.
 
 ## Export RHS and potential
 
@@ -102,7 +102,7 @@ result = forward.solve(source)
 export_forward_result_to_vtx(result, "output/potential.bp")
 ```
 
-Сначала проверьте `source_marker.bp`, затем `rhs.bp`, и только потом интерпретируйте `potential.bp`.
+Check `source_marker.bp` first, then `rhs.bp`, and only then interpret `potential.bp`.
 
 ## Check electrodes
 
@@ -118,9 +118,9 @@ print(placement.mean_distance_to_nearest_node)
 print(placement.max_distance_to_nearest_node)
 ```
 
-Также проверьте `MeasurementOperator.electrode_cell_ids` и `electrode_barycentric`. Электроды должны лежать внутри выбранной volume mesh либо быть предварительно спроецированы в допустимую область.
+Also inspect `MeasurementOperator.electrode_cell_ids` and `electrode_barycentric`. Electrodes must lie inside the selected volume mesh or be projected into a valid location first.
 
-Если электроды находятся вне volume mesh, `build_measurement_operator` по умолчанию делает центральную проекцию на `surface_mesh` или на boundary, извлеченный из tetra mesh:
+If electrodes lie outside the volume mesh, `build_measurement_operator` centrally projects them onto `surface_mesh` or a boundary extracted from the tetra mesh by default:
 
 ```python
 op = build_measurement_operator(
@@ -132,9 +132,9 @@ op = build_measurement_operator(
 print(op.metadata["electrode_projection"])
 ```
 
-В projection report значение `surface_cell_ids[i] == -1` нормально для электрода, который не проецировался. Смотрите одновременно `projected_mask`, projection distance и отдельную nearest-surface диагностику tutorial example.
+In a projection report, `surface_cell_ids[i] == -1` is normal for an electrode that was not projected. Inspect `projected_mask`, projection distance, and the tutorial's separate nearest-surface diagnostics together.
 
-`surface_mesh.num_points` тоже может выглядеть неожиданно большим: extracted triangle mesh иногда сохраняет полный global point array. Фактическое число используемых surface vertices:
+`surface_mesh.num_points` may also look unexpectedly large because an extracted triangle mesh can retain the full global point array. The actual number of used surface vertices is:
 
 ```python
 num_surface_used_vertices = np.unique(surface_mesh.cells.ravel()).size
@@ -175,7 +175,7 @@ print(solver.diagnostics.residual_norm)
 print(solver.diagnostics.nullspace_test_passed)
 ```
 
-Положительный `converged_reason` и успешный nullspace test нужны до анализа физической формы поля.
+A positive `converged_reason` and a successful nullspace test are prerequisites for interpreting the physical field shape.
 
 ## Green RHS is incompatible
 
@@ -188,11 +188,11 @@ row_sums = measurement_matrix_row_sums(forward.measurement_operator)
 print(np.max(np.abs(row_sums)))
 ```
 
-`reference="none"` обычно несовместим; используйте `average` или корректно настроенный `single` reference. Не исправляйте это произвольным вычитанием после Green solve: compatibility должна быть свойством measurement functional.
+`reference="none"` is usually incompatible; use `average` or a correctly configured `single` reference. Do not fix this with arbitrary subtraction after the Green solve: compatibility must be a property of the measurement functional.
 
 ## Inverse result has wrong sign or location
 
-Сначала сравните ordinary forward и Green prediction в true candidate:
+First compare the ordinary forward result and Green prediction at the true candidate:
 
 ```python
 diagnostics = compare_forward_and_green(
@@ -204,11 +204,11 @@ diagnostics = compare_forward_and_green(
 print(diagnostics)
 ```
 
-Если `best_rel_error` мал, но inverse выбирает другую позицию, проверьте ambiguity/top candidates, condition numbers и noise. Если error велик, проверьте transfer provenance: geometry, electrode order, reference, `measurement_row_indices`, `sigma`, candidates и `sign`. Inverse использует `transfer.matrix_for_candidate()` и не меняет sign сам.
+If `best_rel_error` is small but inverse selects another position, inspect ambiguity, top candidates, condition numbers, and noise. If the error is large, verify transfer provenance: geometry, electrode order, reference, `measurement_row_indices`, `sigma`, candidates, and `sign`. Inverse uses `transfer.matrix_for_candidate()` and does not change the sign itself.
 
 ## If forward solution looks unstable
 
-Запустите проверки от дешёвых к дорогим:
+Run checks from least to most expensive:
 
 ```bash
 pytest test_convergence_utils.py test_measurements_module.py
@@ -217,18 +217,18 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
   pytest test_forward_convergence.py test_poisson_manufactured_solution.py
 ```
 
-Интерпретация:
+Interpretation:
 
-- manufactured L2 convergence не проходит — проблема в mesh/FEM assembly/nullspace/solver;
-- manufactured test проходит, но linearity или scaling не проходят — проверяйте RHS assembly и KSP tolerance;
-- linearity проходит, но refinement measurements нестабилен — проверяйте source location относительно mesh skeleton и observation ordering;
-- все verification tests проходят, но torso field выглядит странно — проверяйте physical geometry, conductivity model, source marker и electrodes.
+- manufactured L2 convergence fails: inspect mesh/FEM assembly/nullspace/solver;
+- manufactured test passes but linearity or scaling fails: inspect RHS assembly and KSP tolerance;
+- linearity passes but refinement measurements are unstable: inspect source location relative to the mesh skeleton and observation ordering;
+- all verification tests pass but the torso field looks wrong: inspect physical geometry, conductivity model, source marker, and electrodes.
 
-Не используйте source point, лежащий точно на refinement grid vertex, для cell-local point-dipole convergence: такая точка принадлежит нескольким тетраэдрам.
+Do not use a source point exactly on a refinement-grid vertex for cell-local point-dipole convergence: that point belongs to several tetrahedra.
 
 ## If transfer matrix construction is slow
 
-Отделите point location от gradient evaluation:
+Separate point location from gradient evaluation:
 
 ```bash
 python3 scripts/profile_components.py \
@@ -239,4 +239,4 @@ python3 scripts/profile_components.py \
   --output output/green_transfer_profile
 ```
 
-Profile сравнивает build с lookup и с заранее найденными `candidate_cell_ids`. В текущей реализации оба пути используют cached `DOLFINxP1TetraLocator`, а basis gradients вычисляются batch-операцией. Если stage всё ещё дорогой, отдельно проверьте первый build locator, число candidates/functions и память retained Green functions.
+The profile compares a build with lookup against one with prelocated `candidate_cell_ids`. Both paths use the cached `DOLFINxP1TetraLocator`, and basis gradients are computed in batch. If the stage is still expensive, inspect initial locator construction, candidate/function counts, and retained Green-function memory separately.
