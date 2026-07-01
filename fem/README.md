@@ -103,6 +103,22 @@ SolverDiagnostics(
 )
 ```
 
+### `DOLFINxP1Mapping`
+
+Coordinate-verified serial mapping между MeshData node ids и scalar P1 DOLFINx dofs. `FEMProblem.p1_node_dof_mapping()` кэширует обе перестановки; `node_to_dof_map` и `dof_to_node_map` доступны как properties.
+
+### `DOLFINxP1TetraLocator`
+
+Кэшированный locator owned local tetra cells. Он хранит dof coordinates, cell dofs/vertices/centers и KD-tree, а попадание подтверждает barycentric test:
+
+```python
+locator = problem.p1_tetra_locator()
+cell_ids = locator.locate_points(points)
+grads_phi = locator.basis_gradients(cell_ids)
+```
+
+Locator не смешивает MeshData cell ids с local DOLFINx cell ids и поддерживает только scalar P1 tetra spaces.
+
 ## Основной артефакт: `K`
 
 `K` - FEM stiffness matrix. В `FEMProblem` она доступна как:
@@ -215,6 +231,8 @@ problem.destroy()
 ```
 
 Это уничтожает KSP и matrix owner (`StiffnessOperator`).
+
+Также сбрасываются cached node↔DOF mapping и P1 tetra locator. Objects из этих кэшей нельзя использовать после `destroy()`.
 
 ## Зависимости
 

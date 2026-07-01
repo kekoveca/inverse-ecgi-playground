@@ -17,6 +17,8 @@ The main architectural risks are not conceptual; they are scale and semantics ri
 - Green transfer matrices now carry measurement row ids, but benchmark/provenance metadata is not yet strong enough to prevent stale-cache mismatches.
 - Real torso workflows need stronger provenance, projection-quality review, GreenTransferMatrix cache validation and ambiguity diagnostics.
 
+Status refresh (2026-07): the former brute-force DOLFINx source/candidate lookup has been replaced by a cached `DOLFINxP1TetraLocator`. Transfer construction now batches lookup, cell geometry and basis gradients. Historical findings below are updated where this changes their status.
+
 No large refactor was performed in this pass. The originally high-severity ordering/API issues were addressed with small compatibility-preserving changes; remaining items are medium/roadmap risks.
 
 ## Current architecture map
@@ -31,6 +33,7 @@ fem
   creates P1 FunctionSpace
   assembles K
   owns PETSc nullspace/KSP lifecycle
+  caches node<->dof mapping and local P1 tetra locator
 
 sources
   computes P1 tetra geometry
@@ -78,7 +81,7 @@ Risks:
 
 - `read_gmsh_meshio(dim=2)` defaults to 2D, while torso workflows usually need `dim=3`. Examples usually pass `dim=3`, but the default can surprise users.
 - `SourceRegion` stores cell centers by default; for point dipoles, candidates on cell centers are safe, but arbitrary source candidates need facet-ambiguity diagnostics.
-- Coordinates have no explicit units convention.
+- Coordinate units are documented, but metadata does not enforce them.
 - `load_npz_mesh` uses `allow_pickle=True`, acceptable for local trusted files but should be documented as unsafe for untrusted inputs.
 
 ### fem
@@ -89,6 +92,7 @@ Good:
 - Pure Neumann nullspace handling is explicit: attach nullspace, remove constant RHS component, fix gauge.
 - `rhs_from_local_array` warns in its docstring that production assemblers should fill DOF vectors directly.
 - `build_node_to_dof_map_p1` is in `fem`, which is the right conceptual home.
+- `DOLFINxP1TetraLocator` centralizes cached local cell geometry and lookup for both sources and Green transfer.
 
 Risks:
 
@@ -110,7 +114,7 @@ Good:
 
 Risks:
 
-- DOLFINx cell location is a full scan over local cells.
+- DOLFINx cell location uses a cached centroid KD-tree plus barycentric verification. Worst-case candidate expansion can still reach all owned local cells.
 - Sources on mesh facets are ambiguous; the first containing cell wins.
 - Diagnostics now flag face/edge/vertex barycentric ambiguity, but source-region generation does not yet avoid facets automatically.
 - Some public parameters are named `cell_id` even when their semantic order differs by function.
@@ -313,16 +317,16 @@ Good:
 
 Gaps:
 
-- Units/coordinate convention should be more prominent.
-- Troubleshooting should add explicit cases for Green RHS incompatible reference and inverse mismatch due to wrong transfer provenance.
-- Cache/provenance expectations should be documented before real benchmark sweeps.
+- Units/coordinate convention is now documented but not enforced in metadata.
+- Green/reference and inverse/provenance troubleshooting is now documented.
+- Cache provenance expectations are documented but not yet validated by code.
 
 ## Performance and scalability risks
 
 Short-term bottlenecks:
 
 - Serial coordinate-based `node_to_dof` KDTree matching is cached but still not MPI-aware.
-- O(num_candidates * num_cells) DOLFINx point location.
+- Cached KD-tree/barycentric DOLFINx point location; pathological queries can still expand to all local cells.
 - One Green solve per measurement channel.
 - Storing all Green functions by default.
 - Recomputing `M = R @ P`.
@@ -345,7 +349,7 @@ Long-term bottlenecks:
 The project is ready for small-to-medium serial single-dipole experiments with synthetic meshes and controlled source regions. It is not yet ready for large production torso benchmarks without adding:
 
 - transfer provenance validation;
-- MPI-aware node/dof mapping and cached candidate/cell mappings;
+- MPI-aware node/dof mapping and distributed/global point ownership;
 - transfer matrix cache policy;
 - projection-quality reports and review thresholds;
 - grouped inverse benchmark orchestration;
@@ -371,7 +375,7 @@ No unresolved high-severity item remains in `architecture_review_issues.json`; t
 
 ### Medium
 
-1. Add DOLFINx BVH/batched point location.
+1. Evaluate DOLFINx BVH/global ownership lookup for distributed meshes and pathological locator cases.
 2. Add GreenTransferMatrix provenance schema and validation.
 3. Add inverse ambiguity metrics: second-best gap, rank, condition thresholds.
 4. Add inverse benchmark grouping by electrode set/reference/transfer id.
@@ -381,7 +385,7 @@ No unresolved high-severity item remains in `architecture_review_issues.json`; t
 ### Low
 
 1. Normalize DOLFINx test gating helper.
-2. Add units/coordinates doc section.
+2. Promote units/coordinate metadata from documentation to benchmark provenance.
 3. Polish naming around `cell_id` in future API.
 
 ## Priority issue list
@@ -393,8 +397,8 @@ Top issues:
 1. `ARCH-001`: cached node-to-DOF mapping remains serial-only.
 2. `ARCH-004`: source/candidate facet ambiguity is diagnosed but still a modeling constraint.
 3. `ARCH-008`: weak GreenTransferMatrix provenance for benchmarks.
-4. `ARCH-006`: DOLFINx point location is still O(num_points * num_cells).
-5. `ARCH-009`: inverse benchmark still needs grouped transfer orchestration for many electrode subsets.
+4. `ARCH-009`: inverse benchmark still needs grouped transfer orchestration for many electrode subsets.
+5. `ARCH-005`: Green workflows need earlier reference-compatibility preflight.
 
 ## Safe fixes applied in this pass
 
@@ -409,6 +413,8 @@ Follow-up high-issue fixes:
 - Added explicit `ForwardResult.nodal_value_ordering`, `ForwardResult.dof_values` and optional `ForwardResult.meshdata_nodal_values`.
 - Added `GreenTransferMatrix.measurement_row_indices` and preserved it in transfer cache files.
 - Added barycentric boundary classification and propagated source/candidate ambiguity diagnostics.
+- Added cached `DOLFINxP1TetraLocator`, reused it in point-dipole RHS and Green transfer construction, and added point-location/transfer component profiles.
+- Documented coordinate units, surface point-array semantics and projection report `-1` ids.
 
 No mathematical sign convention was changed.
 

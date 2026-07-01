@@ -56,6 +56,15 @@ projected_electrodes, report = central_project_electrodes_to_surface(
 )
 ```
 
+`TetraVolumeLocator` ускоряет inside checks через cached tetra geometry, centroids и KD-tree. `CentralSurfaceProjector` кэширует triangle array, но текущий ray intersection всё ещё проверяет surface triangles для каждого реально проецируемого электрода. Переиспользуйте оба objects между runs на одной геометрии.
+
+В `ElectrodeProjectionReport`:
+
+- `projected_mask[i]` показывает, менялась ли позиция электрода;
+- `surface_cell_ids[i]` задан только для проецировавшихся электродов;
+- значение `-1` обычно означает «оставлен без изменения», а не ошибку поиска поверхности;
+- `projection_distances` и `max_projection_distance` следует включать в quality control реального эксперимента.
+
 ## Interpolation matrix
 
 Для P1 tetra:
@@ -133,6 +142,12 @@ M = op.matrix()
 Строки `M` используются как RHS vectors в модуле `green`: `K G_i = M_i^T`. Перед записью в DOLFINx Function они отображаются из MeshData node ordering в DOLFINx DOF ordering.
 
 Если электроды были спроецированы, summary доступен в `op.metadata["electrode_projection"]`.
+
+Measurement matrices всегда используют MeshData node ordering, независимо от того, были ли позиции спроецированы. Перестановка в DOLFINx DOF ordering выполняется в `forward`/`green`, а не внутри `MeasurementOperator`.
+
+### Green RHS compatibility
+
+For pure-Neumann Green solves every row of `M` must sum to zero. `average` and valid `single` references satisfy this for P1 interpolation; `none` generally does not. The `green` module checks row sums before solving and raises on incompatible measurement functionals.
 
 ## Constant potential test
 

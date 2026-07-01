@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 # Allow running as:
-#   python3 examples/full_inverse_experiment_torso.py ...
+#   python3 examples/forward_pipeline_multiple_rhs.py ...
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))

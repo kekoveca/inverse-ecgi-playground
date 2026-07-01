@@ -8,10 +8,12 @@ The dominant cost is expected to be Green basis construction because it solves
 one Neumann FEM system per measurement channel. For 128 electrodes this means
 128 linear solves; for 512 electrodes this means 512 solves.
 
-Recent electrode projection work moved repeated point-in-volume checks behind
-cached locator objects. The next performance risks are DOLFINx candidate
-location, repeated node-to-dof mapping, Green function memory retention, and
-missing transfer-matrix caching in benchmark workflows.
+Recent work moved repeated point-in-volume checks, node-to-dof mapping and
+DOLFINx source/candidate lookup behind cached locator/mapping objects. Green
+transfer construction now batches cell geometry and basis-gradient evaluation.
+The main remaining risks are Green solve count, retained Green-function memory,
+central surface ray projection and missing provenance-aware transfer caching in
+benchmark workflows.
 
 This review adds lightweight profiling utilities and scripts:
 
@@ -50,7 +52,7 @@ read mesh
 | Central ray projection | O(N_projected * N_surface_cells) | High |
 | SourceRegion bounding box | O(N_cells) | Medium |
 | MeshData point location | KDTree over centroids plus barycentric checks | Medium |
-| DOLFINx source/candidate location | O(N_points * N_dolfinx_cells) in current helper | High |
+| DOLFINx source/candidate location | KD-tree candidates + barycentric verification; worst-case O(N_points * N_local_cells) | Medium |
 | Stiffness assembly | FEM assembly over all cells | High |
 | One forward solve | solve(K) | High |
 | Green solve_all | O(N_meas * solve(K)) | Critical |
@@ -87,7 +89,7 @@ python3 scripts/profile_full_inverse_experiment.py \
   --no-export
 ```
 
-Observed on this run:
+Observed on this historical run, before `DOLFINxP1TetraLocator` was added:
 
 | Stage | Time, s |
 | --- | ---: |
@@ -101,10 +103,14 @@ Observed on this run:
 | inverse_solve | 0.0017 |
 | total | 44.384 |
 
-This makes transfer construction/candidate DOLFINx location the first measured
-bottleneck on the refined mesh for small `max-green-rows`. Green solve scaling
-will dominate again as row count grows, but the current transfer-location cost
-must be fixed before large candidate grids are practical.
+This run identified transfer construction/candidate location as the first
+measured bottleneck and motivated the locator fix. Do not treat the 32.898 s
+number as current performance: rerun the commands below on the target mesh.
+
+Post-fix synthetic component smoke profile (small unit cube, 5 candidates and
+4 synthetic functions) measured approximately 0.8 ms with lookup and 0.3 ms
+with prelocated cells. These values validate removal of repeated full scans but
+are not a replacement for a torso-mesh profile.
 
 Component-only inverse scaling can be measured without DOLFINx:
 
@@ -137,36 +143,36 @@ per FEM dof.
 
 ## Bottlenecks
 
-## Green solve_all
+### Green solve_all
 
 This is the critical bottleneck. The current algorithm solves `K G_i = M_i^T`
 once per measurement row. It is numerically clear and easy to test, but runtime
 scales linearly with electrode count.
 
-## DOLFINx candidate location
+### DOLFINx candidate location
 
-`locate_candidate_points_in_dolfinx` delegates to
-`locate_point_in_dolfinx_p1_tetra_mesh` per point. That helper reconstructs
-geometry from `V.dofmap.cell_dofs` and scans cells. For hundreds or thousands of
-candidate points this can become expensive. On the `torso_refined.msh` smoke
-profile, `build_transfer_matrix` took about 32.9 seconds for only 10 candidates
-and 4 retained Green functions, which strongly suggests candidate DOLFINx cell
-location dominates the stage.
+Resolved for the current serial/local P1 path: `DOLFINxP1TetraLocator` caches
+dof coordinates, local cell dofs/vertices/centers and a centroid KD-tree.
+`locate_candidate_points_in_dolfinx` performs a batched lookup and verifies
+hits with barycentric coordinates. Source RHS assembly reuses the same locator.
 
-## Node-to-dof mapping
+Residual risks remain: only owned local cells are searched, highly nonuniform
+meshes may force candidate-set expansion, and distributed/global ownership is
+not implemented.
 
-Green RHS creation calls `create_function_from_meshdata_nodal_values`, which
-currently obtains a node-to-dof map through the FEM helper. If this map is not
-cached across Green rows, it can become repeated KDTree/coordinate matching
-work.
+### Node-to-dof mapping
 
-## Central surface projection
+Resolved for the current serial P1 path: Green RHS creation delegates to the
+cached `FEMProblem.p1_node_dof_mapping()`. Coordinate matching is performed once
+per solver/tolerance and shared by forward and Green adapters.
+
+### Central surface projection
 
 Inside checks are now cached through `TetraVolumeLocator`, but central
 ray-triangle intersection still loops over surface triangles for each projected
 electrode. For 512 electrodes on detailed surface meshes this may be noticeable.
 
-## Benchmark orchestration
+### Benchmark orchestration
 
 Forward and inverse benchmark layers are intentionally simple. They can still
 repeat solver construction, Green transfer construction or projection work if
@@ -174,20 +180,20 @@ the caller does not cache scenario-level objects.
 
 ## Short-term optimization plan
 
-1. Cache node-to-dof maps on `NeumannPoissonSolver` or a shared FEM mapping
-   object.
-2. Add a reusable DOLFINx P1 tetra locator for candidate/source points.
-3. Cache DOLFINx candidate cell ids for source regions and store them in
-   transfer metadata.
-4. Add `project_only_outside=False` in clipped-sphere examples when points are
+1. Record geometry/electrode/reference/conductivity provenance with cached
+   Green transfer matrices.
+2. Cache DOLFINx candidate cell ids between repeated transfer builds on the
+   same solver/source region.
+3. Add `project_only_outside=False` in clipped-sphere examples when points are
    known to be external, after validating the projection convention.
-5. Add GreenTransferMatrix cache use to benchmark workflows.
-6. Use `--max-green-rows` routinely to estimate Green scaling before full runs.
+4. Add GreenTransferMatrix cache use to benchmark workflows.
+5. Use `--max-green-rows` routinely to estimate Green scaling before full runs.
+6. Profile central projection separately when many electrodes are outside.
 
 ## Medium-term optimization plan
 
-1. Replace DOLFINx brute-force point location with a reusable locator object or
-   DOLFINx geometry/BVH API.
+1. Add distributed/global point ownership or a DOLFINx BVH path when MPI support
+   becomes a requirement.
 2. Vectorize central ray-triangle projection or add a surface acceleration
    structure.
 3. Add chunked transfer matrix construction for large candidate grids.
@@ -226,12 +232,32 @@ python3 scripts/profile_components.py \
   --output output/inverse_scaling_profile
 ```
 
+Point-location profile:
+
+```bash
+python3 scripts/profile_components.py \
+  --component point-location \
+  --mesh torso_refined.msh \
+  --output output/point_location_profile
+```
+
+Transfer build without Green solves:
+
+```bash
+python3 scripts/profile_components.py \
+  --component green-transfer \
+  --mesh torso_refined.msh \
+  --num-candidates 50 \
+  --num-measurements 16 \
+  --output output/green_transfer_profile
+```
+
 ## Open questions
 
 - Should Green solves be parallelized by measurement row or batched with a
   block solver?
-- Should candidate source regions store DOLFINx cell ids in addition to
-  MeshData cell ids after a solver is created?
+- Should benchmark orchestration persist locator-produced DOLFINx cell ids for
+  one solver lifetime, while keeping them separate from MeshData source ids?
 - Should benchmark scenario metadata include hashes or fingerprints for
   geometry, electrodes and transfer matrices?
 - What is the intended upper bound for `num_candidates` and `num_electrodes` in

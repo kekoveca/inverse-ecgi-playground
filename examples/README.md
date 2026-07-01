@@ -17,6 +17,8 @@ import torso.msh
   -> save reports and optional ParaView exports
 ```
 
+The input mesh must expose a tetra physical group named `domain` and a triangle physical group named `boundary` by default. Override them with `--domain-name` and `--boundary-name`.
+
 Run:
 
 ```bash
@@ -49,7 +51,11 @@ The example uses the existing project API:
 - `GreenSolver` and `build_green_transfer_matrix` for Green transfer;
 - `SingleDipoleInverseSolver` for inverse reconstruction.
 
-Outputs:
+Source/candidate location is performed in DOLFINx ordering by the solver's cached `DOLFINxP1TetraLocator`; MeshData candidate cell ids are not passed through as DOLFINx ids.
+
+Average reference is the default. When using `--reference single`, also pass `--reference-index N`.
+
+## Outputs
 
 ```text
 experiment_summary.json
@@ -66,13 +72,15 @@ true_source_marker.bp
 estimated_source_marker.bp
 ```
 
+## ParaView
+
 Open the `.bp` outputs in ParaView. `electrodes.bp` is a diagnostic nodal marker
 field: it marks the nearest FEM DOF to each electrode position, with marker
 values `1, 2, ...`. It is not an independent point cloud; use
 `electrode_marker_mapping.csv` to inspect exact electrode coordinates and
 nearest-DOF distances. Use `--no-export` to skip VTX/BP export.
 
-## Surface diagnostics
+## Notes on electrode placement
 
 The example prints both `surface_mesh` point-array size and
 `num_surface_used_vertices`. Some mesh import paths keep the full global point
@@ -86,6 +94,14 @@ usually expected when `only_outside_electrodes=True` and the selected electrode
 was already on or inside the volume. The separate `nearest_surface_cell_id` is
 computed for every electrode by the example and saved in
 `electrode_surface_diagnostics.csv`.
+
+The production projection path uses a cached `TetraVolumeLocator` for inside checks. Central ray/triangle intersection is a separate operation and can still scale with the number of surface triangles for electrodes that actually require projection.
+
+## Notes on source candidates
+
+The base tutorial selects tetra cell centers from a central bounding-box source region. `SourceRegion.candidate_cell_ids` are MeshData ids; Green transfer locates candidate coordinates again and stores local DOLFINx ids. The true source is chosen by `--source-index` or by proximity to the volume bbox center.
+
+Candidates on shared faces/edges/vertices are mathematically ambiguous for a cell-local P1 dipole gradient. Cell-center candidates avoid that ambiguity.
 
 ## Full inverse experiment with clipped-sphere electrodes
 
@@ -127,3 +143,15 @@ python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
 
 The `--z-trim-fraction` option defaults to `0.1`, matching the 10% inward shift
 of the clipping planes.
+
+Both tutorials assume that mesh coordinates, electrode positions, source moments and reported distance thresholds use a consistent coordinate system. No automatic mm/m conversion is performed.
+
+## Troubleshooting
+
+- Missing `domain`/`boundary`: inspect the printed physical groups and pass matching names.
+- Empty source region: check coordinate units and source bounding-box placement.
+- Green compatibility error: use average reference for the tutorial.
+- `projection_surface_cell_id = -1`: the electrode was usually unchanged, not unsuccessfully projected.
+- Surface point-array count equals volume count: count unique ids referenced by triangle cells.
+- `electrodes.bp` differs from CSV coordinates: the BP field marks nearest FEM dofs by design.
+- Slow runs: start with `--num-electrodes 8 --num-candidates 5 --no-export`, then use the profiling scripts.

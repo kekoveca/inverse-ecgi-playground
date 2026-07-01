@@ -12,23 +12,23 @@
   },
   {
     "id": "PERF-002",
-    "severity": "critical",
+    "severity": "info",
     "module": "green",
-    "title": "DOLFINx candidate point location is not accelerated",
-    "description": "Candidate points for transfer matrix construction are located in DOLFINx cell ordering by scanning cells through the P1 dofmap helper.",
-    "evidence": "green/gradients.py uses locate_candidate_points_in_dolfinx, which calls locate_point_in_dolfinx_p1_tetra_mesh per point. A torso_refined.msh smoke profile measured build_transfer_matrix at 32.898s for only 10 candidates and 4 Green rows.",
-    "recommendation": "Introduce a reusable DOLFINx P1 tetra locator or use DOLFINx geometry/BVH APIs for candidate/source point lookup.",
+    "title": "Fixed: DOLFINx candidate point location uses a cached locator",
+    "description": "Candidate/source points now use DOLFINxP1TetraLocator, which caches dof coordinates, local cell geometry and a centroid KD-tree and performs batched barycentric verification.",
+    "evidence": "fem/p1_locator.py owns the cache; sources/rhs_assembly.py and green/gradients.py share it. scripts/profile_components.py exposes point-location and green-transfer profiles.",
+    "recommendation": "Retain component profiles and add distributed/global ownership or DOLFINx BVH support if MPI becomes a requirement.",
     "estimated_effort": "medium",
     "behavior_change": false
   },
   {
     "id": "PERF-003",
-    "severity": "high",
+    "severity": "info",
     "module": "green",
-    "title": "Node-to-dof mapping may be rebuilt for each Green RHS row",
-    "description": "Green RHS creation maps MeshData-node ordered measurement rows to DOLFINx dof ordering. If the FEM mapping helper is not cached, this repeats coordinate matching for every measurement row.",
-    "evidence": "green/rhs.py create_function_from_meshdata_nodal_values calls build_node_to_dof_map_p1 inside each create_green_rhs_function call.",
-    "recommendation": "Cache node_to_dof maps on the solver or GreenSolver instance and reuse them across all Green RHS rows.",
+    "title": "Fixed: node-to-dof mapping is cached on the FEM solver",
+    "description": "Green RHS creation maps MeshData-node ordered rows through FEMProblem.p1_node_dof_mapping(), which caches both mapping directions for the solver.",
+    "evidence": "fem/neumann_poisson.py owns _p1_node_dof_mapping and fem/mesh_conversion.py delegates build_node_to_dof_map_p1 to that cache.",
+    "recommendation": "Replace the serial coordinate mapping with ownership-aware mapping before distributed MPI benchmarks.",
     "estimated_effort": "small",
     "behavior_change": false
   },
@@ -94,7 +94,7 @@
     "title": "ForwardSolver already caches measurement node-to-dof map per instance",
     "description": "Forward measurement evaluation keeps _node_to_dof_map after first solve, reducing repeated forward measurement overhead.",
     "evidence": "forward/forward_solver.py stores self._node_to_dof_map.",
-    "recommendation": "Use this as the model for Green RHS mapping cache.",
+    "recommendation": "Resolved in Green RHS through the shared FEM mapping cache; keep one solver per geometry to retain the cache.",
     "estimated_effort": "small",
     "behavior_change": false
   }

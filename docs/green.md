@@ -56,7 +56,7 @@ Average reference satisfies this condition. `measurement_matrix_row_sums` and `c
 2. builds a coordinate-verified scalar-P1 `node_id -> dof_id` map;
 3. writes each nodal coefficient to the corresponding DOLFINx dof.
 
-Do not copy a row of `M` directly into `Function.x.array`. The current coordinate mapping is a serial scalar-P1 tetra MVP and raises a clear error for unsupported distributed layouts.
+Do not copy a row of `M` directly into `Function.x.array`. Mapping is cached on `NeumannPoissonSolver`, so Green rows do not rebuild coordinate matching. The current coordinate mapping is a serial scalar-P1 tetra MVP and raises a clear error for unsupported distributed layouts.
 
 ## Solving a Green basis
 
@@ -83,7 +83,20 @@ g_pred = transfer.predict(0, moment=[0.0, 0.0, 1.0])
 
 `GreenSolver` reuses the stiffness matrix and KSP owned by `NeumannPoissonSolver`. `GreenBasis.functions` contains one DOLFINx function per solved measurement row when `keep_functions=True`.
 
-Candidate points are located again in DOLFINx cell ordering. `SourceRegion.candidate_cell_ids` are MeshData cell ids and must not be passed as DOLFINx ids without an explicit verified mapping.
+For partial bases, `GreenBasis.metadata["row_indices"]` is propagated to `GreenTransferMatrix.measurement_row_indices`; transfer rows therefore retain their original measurement-channel identity.
+
+Candidate points are located again in DOLFINx cell ordering through the solver's cached `DOLFINxP1TetraLocator`. The lookup is batched, basis gradients are prepared once per candidate cell, and gradients across candidates are evaluated with vectorized numpy operations. `SourceRegion.candidate_cell_ids` are MeshData cell ids and must not be passed as DOLFINx ids without an explicit verified mapping.
+
+If DOLFINx cell ids were already located and belong to the same solver, pass them as `candidate_cell_ids` to avoid even the cached lookup step. `GreenTransferMatrix.candidate_cell_ids` stores local DOLFINx ids.
+
+## Transfer tensor shape
+
+```text
+A.shape == (num_candidates, num_measurements, 3)
+A[j].shape == (num_measurements, 3)
+```
+
+`transfer.matrix_for_candidate(j)` returns signed `A[j]`; `transfer.predict(j, moment)` returns a vector of referenced measurements.
 
 ## Consistency check
 
@@ -101,6 +114,8 @@ print(diagnostics["best_sign"])
 print(diagnostics["best_rel_error"])
 ```
 
+For several cases, `infer_green_sign_from_cases(cases)` returns the majority best sign from `compare_forward_and_green` diagnostics.
+
 The small-mesh integration test requires `rel_error_plus < 1e-6` and currently confirms `best_sign == +1`, so the implemented discrete convention is `g = A_j @ p`. The diagnostic still evaluates both signs to make convention regressions visible.
 
 ## Cache
@@ -112,7 +127,7 @@ save_green_transfer_matrix(transfer, "output/green_transfer.npz")
 transfer = load_green_transfer_matrix("output/green_transfer.npz")
 ```
 
-The cache stores `A`, candidate points, DOLFINx candidate cell ids, sign and JSON metadata. Green functions themselves are not stored.
+The cache stores `A`, candidate points, local DOLFINx candidate cell ids, measurement row indices, sign and JSON metadata. Green functions themselves are not stored. Callers should include geometry/electrode/reference/conductivity provenance in metadata; cache loading does not currently validate a mesh fingerprint.
 
 ## Inverse handoff
 

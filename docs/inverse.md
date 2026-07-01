@@ -80,6 +80,8 @@ result = solve_single_dipole_inverse(
 
 `SingleDipoleInverseResult` stores the observed measurements, all solved candidate solutions and the best solution. `to_summary_dict()` intentionally omits full residual and moment maps.
 
+Candidate selection uses minimum residual with deterministic first-index tie breaking. `condition_number` is reported per candidate, but the current API does not yet flag rank deficiency or quantify the best-vs-second residual gap. Inspect top candidates with `summarize_inverse_result` when localization ambiguity matters.
+
 Use:
 
 ```python

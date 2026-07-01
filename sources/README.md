@@ -49,7 +49,7 @@ rhs = assemble_point_dipole_rhs_numpy(mesh, source)
 local_rhs = gradients_p1_tetra(vertices) @ source.moment
 ```
 
-Этот знак позже должен быть окончательно проверен на этапе FEM-Green consistency.
+Discrete FEM/Green consistency tests подтверждают текущий transfer convention `g = A_j @ p` со знаком `+1`.
 
 ## FEM adapter
 
@@ -62,7 +62,7 @@ rhs_function = assemble_point_dipole_rhs_petsc(problem, source)
 u = problem.solve(rhs_function)
 ```
 
-Адаптер использует `problem.mesh_data`, `problem.V` и `problem.zero_function()`. Он находит ячейку по `source.position` в локальном DOLFINx cell ordering и записывает локальный вклад в `V.dofmap.cell_dofs(cell_id)`. Numpy-вектор в порядке узлов `MeshData` не копируется.
+Адаптер использует `problem.mesh_data`, `problem.V`, `problem.zero_function()` и cached `problem.p1_tetra_locator()`. Он находит ячейку по `source.position` в локальном DOLFINx cell ordering и записывает локальный вклад в `V.dofmap.cell_dofs(cell_id)`. Numpy-вектор в порядке узлов `MeshData` не копируется.
 
 ## Debugging point dipole RHS
 
@@ -72,8 +72,8 @@ u = problem.solve(rhs_function)
 
 1. находит ячейку источника;
 2. берет `cell_dofs = V.dofmap.cell_dofs(cell_id)`;
-3. берет координаты dof через `V.tabulate_dof_coordinates()`;
-4. вычисляет `local_rhs = gradients_p1_tetra(dof_coords[cell_dofs, :3]) @ moment`;
+3. берет координаты dof/cell geometry из cached P1 locator;
+4. вычисляет `local_rhs = grads @ moment` в local dof order;
 5. записывает четыре значения только в `cell_dofs`.
 
 Для одного точечного диполя в P1 tetra RHS должен иметь ровно четыре ненулевых dof.
@@ -166,3 +166,5 @@ assert info["barycentric_min"] > -1e-8
 ```
 
 Если `source_marker.bp` не совпадает с ожидаемым положением в ParaView, следует проверять `desired_position` и формирование source region. Знак RHS при этой диагностике не меняется: `local_rhs = grads @ source.moment`.
+
+Для batch source/candidate lookup используйте `solver.p1_tetra_locator().locate_points(points)`. Возвращаемые cell ids относятся к owned local DOLFINx cells.

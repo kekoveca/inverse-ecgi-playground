@@ -51,12 +51,12 @@
   },
   {
     "id": "ARCH-006",
-    "severity": "medium",
+    "severity": "info",
     "category": "performance",
     "module": "sources/green",
-    "title": "DOLFINx point location is O(num_points * num_cells)",
-    "description": "locate_point_in_dolfinx_p1_tetra_mesh scans local cells and reconstructs cell geometry from dofs for each point. This is robust for tests but expensive for source regions with many candidates.",
-    "recommendation": "Introduce a DOLFINx-side bounding box tree/BVH or cache cell centroids plus candidate cell ids; batch candidate lookup for transfer matrix construction.",
+    "title": "Fixed: DOLFINx point location uses a cached P1 tetra locator",
+    "description": "DOLFINxP1TetraLocator now caches dof coordinates, local cell dofs/vertices/centers and a centroid KD-tree. Sources and Green transfer share it; candidate lookup and basis-gradient extraction are batched. The locator remains owned-local-cell only and may expand to all local cells in pathological cases.",
+    "recommendation": "For distributed meshes, add ownership-aware global lookup or DOLFINx BVH support and benchmark pathological/nonuniform meshes.",
     "requires_behavior_change": false
   },
   {
@@ -141,12 +141,12 @@
   },
   {
     "id": "ARCH-015",
-    "severity": "low",
+    "severity": "info",
     "category": "docs",
     "module": "docs",
-    "title": "Coordinate units are not a first-class documented convention",
-    "description": "The code assumes source, electrode and mesh coordinates are in the same coordinate system, but docs do not clearly state whether examples use meters, millimeters or arbitrary units.",
-    "recommendation": "Add a short Units and coordinates section to geometry/README and top-level docs. Require benchmark metadata to state coordinate units.",
+    "title": "Coordinate units are documented but not enforced in metadata",
+    "description": "Documentation now requires mesh, source and electrode coordinates to share one frame and unit system and states that no automatic mm/m conversion occurs. Benchmark/cache schemas still do not require a coordinate-units field.",
+    "recommendation": "Require benchmark and transfer provenance metadata to state coordinate units and registration frame.",
     "requires_behavior_change": false
   },
   {

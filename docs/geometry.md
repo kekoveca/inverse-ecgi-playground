@@ -77,6 +77,13 @@ surface_mesh = tagged.to_mesh_data(
 
 `to_mesh_data` возвращает новый `MeshData` с одним активным block и сохраняет physical metadata.
 
+Extracted surface blocks may retain the full global `points` array from the Gmsh file. Therefore `surface_mesh.num_points` can equal `volume_mesh.num_points` even when only a subset is referenced by boundary triangles. For diagnostics use:
+
+```python
+surface_used_vertex_ids = np.unique(surface_mesh.cells.ravel())
+num_surface_used_vertices = surface_used_vertex_ids.size
+```
+
 ## ElectrodeSet
 
 ```python
@@ -92,6 +99,8 @@ electrodes = ElectrodeSet(
 Для первичной проверки размещения доступен `electrode_placement_report(electrodes, mesh)`, который измеряет расстояния до ближайших mesh nodes.
 
 Если электроды заданы немного вне volume mesh, модуль `measurements` умеет центрально проецировать их на surface mesh перед построением measurement operator. Эта операция не меняет исходный `ElectrodeSet` внутри `TorsoGeometry`; спроецированные позиции и report хранятся в `MeasurementOperator.metadata["electrode_projection"]`.
+
+`ElectrodeProjectionReport.surface_cell_ids == -1` означает, что projection triangle не записывался для этого электрода, обычно потому что он уже находился внутри/на границе и `project_only_outside=True`. Это не означает ошибку surface mesh.
 
 ## SourceRegion
 
@@ -138,6 +147,10 @@ torso = TorsoGeometry(
 ```
 
 `validate_torso_geometry(torso)` проверяет согласованность dimensions, cell ids, electrode positions и наличие данных.
+
+## Units and coordinate frame
+
+`geometry` не назначает единицы автоматически. Mesh points, electrodes, source regions, transforms и distance thresholds должны использовать одну coordinate frame и одну систему единиц. Если `.msh` задан в миллиметрах, localization errors и projection distances также будут в миллиметрах; `sigma` должен быть согласован с выбранной физической моделью.
 
 ## Visualization
 

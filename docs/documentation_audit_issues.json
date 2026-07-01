@@ -1,0 +1,92 @@
+[
+  {
+    "id": "DOC-001",
+    "severity": "high",
+    "file": "README.md",
+    "title": "Root README was not a complete onboarding entry point",
+    "description": "The README described much of the pipeline but lacked the requested requirements, repository map and consolidated known-limitations sections.",
+    "action": "updated",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-002",
+    "severity": "high",
+    "file": "docs/conventions.md",
+    "title": "Cross-module ordering and sign conventions lacked one canonical page",
+    "description": "Ordering, sign, reference and unit rules were distributed across module guides, making dangerous MeshData/DOLFINx boundaries harder to discover.",
+    "action": "created",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-003",
+    "severity": "medium",
+    "file": "docs/api_overview.md",
+    "title": "No compact public API map existed",
+    "description": "A package-by-package API map was generated from the current __init__.py exports, including locator, marker, Green cache and inverse benchmark APIs.",
+    "action": "created",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-004",
+    "severity": "medium",
+    "file": "docs/performance.md",
+    "title": "Performance documentation mixed user commands with historical audit findings",
+    "description": "A current user-facing profiling guide and scripts README were added; the historical performance review remains available separately.",
+    "action": "created",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-005",
+    "severity": "high",
+    "file": "docs/performance_review.md",
+    "title": "Point-location bottleneck description predated locator objects",
+    "description": "The review and issue JSON now mark repeated brute-force location and repeated node-to-DOF matching as fixed for the current serial P1 path.",
+    "action": "updated",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-006",
+    "severity": "medium",
+    "file": "README.md",
+    "title": "Forward command referenced removed main.py",
+    "description": "The command now uses the existing examples/forward_pipeline.py CLI.",
+    "action": "updated",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-007",
+    "severity": "medium",
+    "file": "examples/full_inverse_experiment_torso.py",
+    "title": "Single-reference CLI lacked reference_index",
+    "description": "The parser advertised reference=single but could not pass the required index. --reference-index was added to both full examples and the full profiling script.",
+    "action": "updated",
+    "requires_code_change": true
+  },
+  {
+    "id": "DOC-008",
+    "severity": "medium",
+    "file": "docs/green.md",
+    "title": "Transfer shape and partial-row identity needed stronger documentation",
+    "description": "The tensor shape, measurement_row_indices, signed candidate matrix and sign diagnostics are now explicit.",
+    "action": "updated",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-009",
+    "severity": "medium",
+    "file": "examples/README.md",
+    "title": "Full-example outputs and surface diagnostics needed clearer interpretation",
+    "description": "Physical-group requirements, source candidate semantics, ParaView markers, non-compacted surface points and projection id -1 are documented.",
+    "action": "updated",
+    "requires_code_change": false
+  },
+  {
+    "id": "DOC-010",
+    "severity": "info",
+    "file": "package __init__.py files",
+    "title": "Public exports were complete",
+    "description": "No existing public function required an additional __init__.py export during this audit.",
+    "action": "left_as_recommendation",
+    "requires_code_change": false
+  }
+]

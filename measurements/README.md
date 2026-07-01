@@ -101,3 +101,5 @@ print(op.metadata["electrode_projection"])
 - `CentralSurfaceProjector` кэширует surface triangles для центральной проекции.
 
 Их можно передать в `central_project_electrodes_to_surface(...)` явно, если несколько наборов электродов проецируются на одну геометрию.
+
+`ElectrodeProjectionReport.surface_cell_ids[i] == -1` обычно означает, что электрод не изменялся при `project_only_outside=True`; проверяйте `projected_mask` вместе с id. Inside lookup ускорен locator object, но central ray projection всё ещё проверяет surface triangles для каждого проецируемого электрода.

@@ -48,6 +48,16 @@ print(info["ordering_warning"])
 
 `source.cell_id` относится к MeshData ordering и по умолчанию не используется PETSc assembler.
 
+Для нескольких точек можно проверить cached locator напрямую:
+
+```python
+locator = solver.p1_tetra_locator()
+cell_ids, barycentric = locator.locate_points(points, return_barycentric=True)
+print(locator.metadata)
+```
+
+Возвращаемые ids локальны для DOLFINx solver, а не для `MeshData`.
+
 ## Export source marker
 
 ```python
@@ -122,6 +132,14 @@ op = build_measurement_operator(
 print(op.metadata["electrode_projection"])
 ```
 
+В projection report значение `surface_cell_ids[i] == -1` нормально для электрода, который не проецировался. Смотрите одновременно `projected_mask`, projection distance и отдельную nearest-surface диагностику tutorial example.
+
+`surface_mesh.num_points` тоже может выглядеть неожиданно большим: extracted triangle mesh иногда сохраняет полный global point array. Фактическое число используемых surface vertices:
+
+```python
+num_surface_used_vertices = np.unique(surface_mesh.cells.ravel()).size
+```
+
 ## Checking electrode placement in ParaView
 
 The full inverse example exports `electrodes.bp`, a diagnostic scalar field on
@@ -159,6 +177,35 @@ print(solver.diagnostics.nullspace_test_passed)
 
 Положительный `converged_reason` и успешный nullspace test нужны до анализа физической формы поля.
 
+## Green RHS is incompatible
+
+For pure Neumann Green solves every measurement row must sum to zero:
+
+```python
+from green import measurement_matrix_row_sums
+
+row_sums = measurement_matrix_row_sums(forward.measurement_operator)
+print(np.max(np.abs(row_sums)))
+```
+
+`reference="none"` обычно несовместим; используйте `average` или корректно настроенный `single` reference. Не исправляйте это произвольным вычитанием после Green solve: compatibility должна быть свойством measurement functional.
+
+## Inverse result has wrong sign or location
+
+Сначала сравните ordinary forward и Green prediction в true candidate:
+
+```python
+diagnostics = compare_forward_and_green(
+    forward_result,
+    transfer,
+    candidate_index=true_index,
+    moment=source.moment,
+)
+print(diagnostics)
+```
+
+Если `best_rel_error` мал, но inverse выбирает другую позицию, проверьте ambiguity/top candidates, condition numbers и noise. Если error велик, проверьте transfer provenance: geometry, electrode order, reference, `measurement_row_indices`, `sigma`, candidates и `sign`. Inverse использует `transfer.matrix_for_candidate()` и не меняет sign сам.
+
 ## If forward solution looks unstable
 
 Запустите проверки от дешёвых к дорогим:
@@ -178,3 +225,18 @@ TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
 - все verification tests проходят, но torso field выглядит странно — проверяйте physical geometry, conductivity model, source marker и electrodes.
 
 Не используйте source point, лежащий точно на refinement grid vertex, для cell-local point-dipole convergence: такая точка принадлежит нескольким тетраэдрам.
+
+## If transfer matrix construction is slow
+
+Отделите point location от gradient evaluation:
+
+```bash
+python3 scripts/profile_components.py \
+  --component green-transfer \
+  --mesh torso_refined.msh \
+  --num-candidates 50 \
+  --num-measurements 16 \
+  --output output/green_transfer_profile
+```
+
+Profile сравнивает build с lookup и с заранее найденными `candidate_cell_ids`. В текущей реализации оба пути используют cached `DOLFINxP1TetraLocator`, а basis gradients вычисляются batch-операцией. Если stage всё ещё дорогой, отдельно проверьте первый build locator, число candidates/functions и память retained Green functions.

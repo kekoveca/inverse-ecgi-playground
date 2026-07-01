@@ -70,6 +70,12 @@ def parse_args() -> argparse.Namespace:
         default="average",
         help="Electrode reference system. Green solves usually require average or single.",
     )
+    parser.add_argument(
+        "--reference-index",
+        type=int,
+        default=None,
+        help="Electrode index required when --reference single is used.",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for the golden-angle phase.")
     parser.add_argument("--no-export", action="store_true", help="Skip VTX/BP ParaView exports.")
     parser.add_argument(

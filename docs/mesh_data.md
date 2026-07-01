@@ -201,12 +201,19 @@ surface_mesh = mesh.to_mesh_data(
 )
 ```
 
-Для текущей `torso.msh`:
+Не привязывайте production-код к конкретным counts из repository mesh files: они меняются при refinement и remeshing.
+
+### Surface point arrays
+
+`to_mesh_data("triangle", ...)` сохраняет исходный global point array и connectivity выбранных triangles. Поэтому `surface_mesh.num_points` может совпадать с `volume_mesh.num_points`, хотя surface triangles используют существенно меньше вершин:
 
 ```python
-volume_mesh.num_cells == 47158
-surface_mesh.num_cells == 7760
+used_surface_vertex_ids = np.unique(surface_mesh.cells.ravel())
+print("point array size:", surface_mesh.num_points)
+print("used surface vertices:", used_surface_vertex_ids.size)
 ```
+
+Такое представление сохраняет global node ids и не является ошибкой. Для памяти можно позднее добавить explicit compaction helper, но нельзя неявно перенумеровывать nodes там, где downstream metadata зависит от исходных ids.
 
 ## Типовой пайплайн
 

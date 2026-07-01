@@ -51,6 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sigma", type=float, default=1.0)
     parser.add_argument("--moment", nargs=3, type=float, default=[0.0, 0.0, 1.0])
     parser.add_argument("--reference", choices=["average", "single", "none"], default="average")
+    parser.add_argument("--reference-index", type=int, default=None)
     parser.add_argument("--lambda-reg", type=float, default=1e-10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--electrode-mode", choices=["surface-farthest", "surface-random"], default="surface-farthest")
@@ -138,6 +139,7 @@ def main() -> int:
         "num_electrodes": args.num_electrodes,
         "num_candidates": args.num_candidates,
         "reference": args.reference,
+        "reference_index": args.reference_index,
         "max_green_rows": args.max_green_rows,
     }
 
@@ -191,6 +193,7 @@ def main() -> int:
                     mesh=volume_mesh,
                     electrodes=electrodes,
                     reference=args.reference,
+                    reference_index=args.reference_index,
                     surface_mesh=surface_mesh,
                 )
             memory_snapshot("after_measurement_operator", memory)

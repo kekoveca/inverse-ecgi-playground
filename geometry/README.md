@@ -62,14 +62,12 @@ print(report.is_valid)
 print(report.summary)
 ```
 
-## Дальнейшие расширения
+## Связанные слои и будущие расширения
 
-- `meshio` импорт `.msh`, `.vtk`, `.xdmf`;
-- проекция электродов на surface mesh;
-- spatial index через `scipy.spatial.cKDTree`;
-- разметка областей торса;
-- связь с `dolfinx.mesh.Mesh`;
-- построение source region из heart mask / heart surface.
+- Gmsh/meshio import и physical groups уже поддерживаются в `MeshData`;
+- central electrode projection и cached volume locator находятся в `measurements`;
+- DOLFINx conversion, node↔DOF mapping и local-cell locator находятся в `fem`;
+- возможные расширения: heart mask/surface source regions, explicit surface compaction и registration-aware transforms.
 
 ## Gmsh / meshio import with physical tags
 
@@ -147,3 +145,7 @@ from geometry import plot_mesh, plot_source_region
 plot_mesh(volume_mesh)
 plot_source_region(source_region)
 ```
+
+## Units and surface counts
+
+Все geometry objects должны использовать одну coordinate frame и единицы; автоматической конверсии mm/m нет. Extracted triangle meshes могут хранить полный global point array. Для фактического числа surface vertices используйте `np.unique(surface_mesh.cells.ravel()).size`, а не только `surface_mesh.num_points`.

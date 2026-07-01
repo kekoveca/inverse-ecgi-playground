@@ -44,23 +44,29 @@ result = forward.solve(source)
 
 - `source` — исходный `PointDipole`;
 - `potential` — обычно `dolfinx.fem.Function`;
-- `nodal_values` — copy массива значений функции;
+- `nodal_values` — copy массива значений функции в ordering, указанном `nodal_value_ordering`;
+- `dof_values` — явный accessor для DOLFINx dof-ordered values;
+- `meshdata_nodal_values` — optional copy в MeshData node ordering для measurement evaluation;
 - `raw_measurements` — значения до reference;
 - `measurements` — referenced values;
 - `reference` — выбранная reference-система;
 - `metadata` — краткая информация о запуске.
 
-Дополнительные properties: `num_nodes`, `num_electrodes`, `measurement_norm`, `raw_measurement_norm`. `to_dict()` возвращает summary без больших массивов.
+Дополнительные properties: `num_nodes`, `num_electrodes`, `measurement_norm`, `raw_measurement_norm`, `has_meshdata_nodal_values`. `to_dict()` возвращает summary без больших массивов.
 
 ## Ordering note for measurements
 
 `potential.x.array` использует DOLFINx DOF ordering, а numpy `MeasurementOperator` строится по MeshData node ordering. `ForwardSolver` применяет проверенное coordinate-based `node_id -> dof_id` mapping и переставляет значения перед вычислением измерений. Совпадение integer ids не считается универсальным свойством.
+
+Mapping кэшируется на `NeumannPoissonSolver` и повторно используется между forward/Green solves. Не интерпретируйте `nodal_values[node_id]` как значение MeshData node без этого mapping.
 
 Source RHS уже решает эту проблему отдельно: он собирается непосредственно через `V.dofmap.cell_dofs`.
 
 ## Green consistency
 
 Модуль `green` решает reciprocal systems `K G_i = M_i^T` и строит `A[j, i, :] = grad G_i(x_j)`. Для candidate source ordinary forward measurement сравнивается с `A_j @ p` через `compare_forward_and_green`. Это одновременно проверяет RHS convention, node/DOF mapping и вычисление P1 gradients.
+
+Small-mesh integration tests подтверждают текущий transfer sign `+1`. `GreenTransferMatrix.sign` остаётся явной частью API и учитывается через `matrix_for_candidate()`.
 
 Подробности: [Green functions](green.md).
 
@@ -86,13 +92,33 @@ from forward import export_dolfinx_function_to_vtx
 export_dolfinx_function_to_vtx(rhs, "output/rhs.bp", name="rhs")
 ```
 
+Source-cell markers are created in `sources` and exported through the same generic writer:
+
+```python
+from sources import create_cell_marker_function
+
+marker = create_cell_marker_function(solver, dolfinx_cell_id, name="source_marker")
+export_dolfinx_function_to_vtx(marker, "output/source_marker.bp", name="source_marker")
+```
+
 ### Electrode marker export
 
 For ParaView placement checks, `forward` can export electrodes as a diagnostic
 P1 nodal marker field:
 
 ```python
-from forward import export_electrode_markers_to_vtx
+from forward import (
+    create_electrode_marker_function,
+    export_electrode_markers_to_vtx,
+    inspect_electrode_marker_mapping,
+)
+
+info = inspect_electrode_marker_mapping(solver, electrodes)
+marker = create_electrode_marker_function(
+    solver,
+    electrodes,
+    value_mode="index",
+)
 
 export_electrode_markers_to_vtx(
     solver,
@@ -158,6 +184,8 @@ Point dipole solution сингулярен в source position, поэтому gl
 - уменьшение differences между fixed remote observations при refinement `n=4, 8, 16`.
 
 Для refinement source выбирается рядом с центром, но не на mesh face/edge/vertex. Диполь ровно в grid vertex принадлежит нескольким cells, и выбор одного local P1 gradient не образует однозначную refinement sequence.
+
+Source lookup для repeated solves использует cached `DOLFINxP1TetraLocator`. Это ускоряет локализацию, но не устраняет математическую неоднозначность source на общей face/edge/vertex.
 
 Запуск:
 

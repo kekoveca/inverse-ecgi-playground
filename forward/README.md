@@ -90,4 +90,6 @@ export_electrode_markers_to_vtx(solver, electrodes, "output/electrodes.bp")
 
 Для чистой задачи Неймана потенциал определен с точностью до константы. `fem` фиксирует gauge решения, а `average` reference дополнительно убирает произвольную константу из электродных измерений.
 
-Знак RHS задается в `sources` как `gradients_p1_tetra(vertices) @ moment` и будет окончательно проверяться через Green consistency.
+Знак RHS задается в `sources` как `gradients_p1_tetra(vertices) @ moment`; current FEM/Green consistency tests подтверждают transfer sign `+1`.
+
+`ForwardSolver` переставляет DOLFINx dof values в MeshData node ordering через cached solver mapping перед применением `MeasurementOperator`. Source cell lookup использует cached `DOLFINxP1TetraLocator`.

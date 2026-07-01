@@ -19,6 +19,8 @@ Solver создаёт и хранит:
 - stiffness matrix (`K`, alias `A`);
 - PETSc constant nullspace;
 - KSP solver, переиспользуемый для нескольких RHS.
+- кэшированный scalar-P1 node↔DOF mapping;
+- кэшированный local-cell tetra locator для source/candidate lookup.
 
 ## Pure Neumann nullspace
 
@@ -58,6 +60,29 @@ MeshData cell_id == DOLFINx cell_id
 ```
 
 Не записывайте значения, индексированные по `MeshData`, напрямую в PETSc/FEniCSx vectors. Для cell-local операций используйте `V.dofmap.cell_dofs(dolfinx_cell_id)` и координаты `V.tabulate_dof_coordinates()`.
+
+### Node-to-DOF mapping
+
+Для serial scalar P1 доступен coordinate-verified mapping:
+
+```python
+mapping = solver.p1_node_dof_mapping()
+node_to_dof = mapping.node_to_dof
+dof_to_node = mapping.dof_to_node
+```
+
+`build_node_to_dof_map_p1(solver)` делегирует этому кэшу. Mapping используется `forward` и `green`, когда numpy operator в MeshData node ordering нужно связать с DOLFINx Function. В distributed MPI layout helper намеренно выбрасывает ошибку вместо предположения об ownership/ghost ids.
+
+### P1 tetra locator
+
+```python
+locator = solver.p1_tetra_locator()
+cell_ids, barycentric = locator.locate_points(points, return_barycentric=True)
+cell_dofs, vertices = locator.cell_geometry(cell_ids)
+grads_phi = locator.basis_gradients(cell_ids)
+```
+
+`DOLFINxP1TetraLocator` один раз кэширует dof coordinates, local cell dofs, vertices, centers и KD-tree. KD-tree лишь упорядочивает candidate cells; итоговое попадание всегда подтверждается barycentric containment test. Возвращаемые ids относятся к owned local DOLFINx cells. Поддерживается только scalar P1 tetra space.
 
 ## Solver usage
 
@@ -104,6 +129,8 @@ PETSc objects освобождаются явно:
 ```python
 solver.destroy()
 ```
+
+`destroy()` также сбрасывает FEM mapping/locator caches. Не переиспользуйте полученные locator/mapping objects после уничтожения solver.
 
 В MPI-программе создание, solve и destroy должны выполняться согласованно всеми ranks communicator.
 

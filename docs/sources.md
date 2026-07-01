@@ -67,8 +67,8 @@ PETSc adapter не копирует numpy RHS. Он:
 
 1. находит `source.position` среди локальных DOLFINx cells;
 2. получает `cell_dofs = solver.V.dofmap.cell_dofs(cell_id)`;
-3. берёт dof coordinates в том же локальном порядке;
-4. вычисляет четыре local values;
+3. берёт cell geometry в том же локальном порядке из cached P1 locator;
+4. вычисляет `local_rhs = grads @ source.moment`;
 5. записывает их непосредственно в DOLFINx Function.
 
 По умолчанию `source.cell_id` **не считается DOLFINx cell id**. Это поле относится к MeshData ordering.
@@ -83,7 +83,7 @@ PETSc adapter не копирует numpy RHS. Он:
 local_rhs = gradients_p1_tetra(vertices) @ source.moment
 ```
 
-Знак намеренно не меняется в диагностических исправлениях. Финальная физическая проверка знака будет выполнена позже через FEM/Green consistency.
+Знак намеренно не меняется диагностическими helpers. Текущий discrete FEM/Green consistency test подтверждает convention `g = A_j @ p` со знаком `+1`; physical orientation и units конкретной модели должны оставаться согласованными.
 
 ## Source location debugging
 
@@ -95,7 +95,14 @@ from sources import locate_point_in_dolfinx_p1_tetra_mesh
 cell_id = locate_point_in_dolfinx_p1_tetra_mesh(solver, source.position)
 ```
 
-MVP-функция перебирает owned local cells и возвращает local DOLFINx cell id.
+Public wrapper использует кэшированный `fem.DOLFINxP1TetraLocator` и возвращает owned local DOLFINx cell id. Locator запрашивает ближайшие центры через KD-tree и подтверждает ячейку барицентрическими координатами; в худшем случае набор кандидатов расширяется до всех local cells.
+
+Для batch lookup используйте locator напрямую:
+
+```python
+locator = solver.p1_tetra_locator()
+cell_ids = locator.locate_points(candidate_points)
+```
 
 ### Full diagnostics
 

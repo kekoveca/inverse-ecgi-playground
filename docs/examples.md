@@ -102,7 +102,7 @@ finally:
 ## Run the project script
 
 ```bash
-python3 main.py \
+python3 examples/forward_pipeline.py \
   --mesh torso.msh \
   --physical-name domain \
   --position 0 0 0 \
@@ -110,3 +110,58 @@ python3 main.py \
 ```
 
 Скрипт создаёт `potential.bp`, `potential.xdmf`, `rhs.bp`, `source_marker.bp` и JSON summary в `output/`.
+
+## Full forward -> Green -> inverse tutorial
+
+Для реальной Gmsh geometry используйте готовый tutorial:
+
+Required physical groups:
+
+```text
+domain   dim=3, tetra volume
+boundary dim=2, triangle torso surface
+```
+
+```bash
+python3 examples/full_inverse_experiment_torso.py \
+  --mesh torso.msh \
+  --output output/full_inverse_experiment \
+  --num-electrodes 32 \
+  --num-candidates 50 \
+  --snr-db 40 \
+  --lambda-reg 1e-10
+```
+
+Он читает physical groups, размещает/проверяет электроды, решает forward и Green systems, строит transfer matrix, выполняет inverse reconstruction и сохраняет reports/ParaView fields. Вариант `full_inverse_experiment_torso_clipped_sphere_electrodes.py` создаёт исходные электроды квазиравномерно на clipped circumscribed sphere и затем центрально проецирует их на торс.
+
+Key arguments:
+
+- `--domain-name`, `--boundary-name`: physical group names;
+- `--num-electrodes`, `--num-candidates`;
+- `--source-index`, `--moment`, `--sigma`;
+- `--reference`, `--reference-index`, `--snr-db`, `--lambda-reg`;
+- `--no-export`, `--skip-green-sign-check`.
+
+Outputs include JSON summaries, measurements NPZ, electrode/candidate CSV files and `potential.bp`, `rhs.bp`, true/estimated source markers and `electrodes.bp`. See [../examples/README.md](../examples/README.md) for the complete list.
+
+## Profile point location and transfer build
+
+```bash
+python3 scripts/profile_components.py \
+  --component green-transfer \
+  --mesh torso_refined.msh \
+  --num-candidates 50 \
+  --num-measurements 16 \
+  --output output/green_transfer_profile
+```
+
+Этот profile использует synthetic DOLFINx functions и измеряет transfer construction отдельно от стоимости Green solves.
+
+## Common failures
+
+- Physical group lookup fails: inspect printed `field_data` and pass the actual `--domain-name`/`--boundary-name`.
+- Source region is empty: adjust its central bounding box or inspect mesh units.
+- Electrode interpolation fails: inspect projection distances and `electrode_surface_diagnostics.csv`.
+- Green RHS is incompatible: use `average` or a valid `single` reference.
+- ParaView marker looks displaced: `electrodes.bp` marks nearest FEM dofs; consult `electrode_marker_mapping.csv`.
+- `surface_mesh.num_points` equals the volume count: use unique vertex ids referenced by triangle cells; the point array may be global and non-compacted.

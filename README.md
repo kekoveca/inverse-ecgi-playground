@@ -2,95 +2,101 @@
 
 ## Project goal
 
-Проект реализует forward pipeline для вычисления электрического потенциала в объёмной сетке торса от точечного диполя:
+Проект решает прямую и дискретную одно-дипольную обратную задачу для электрического потенциала в тетраэдральной модели торса:
 
 ```text
-geometry -> FEM Neumann solver -> point dipole RHS -> electrode measurements -> ParaView export
+torso.msh -> geometry -> Neumann FEM -> point-dipole forward measurements
+          -> GreenTransferMatrix -> single-dipole inverse -> benchmark metrics
 ```
 
-Текущий код включает Green-базис, transfer matrices и single-dipole inverse reconstruction.
+Численная verification, ParaView export и performance profiling сопровождают основной pipeline.
 
-## Current modules
+## Current capabilities
 
-- [`geometry`](docs/geometry.md) — независимые от FEniCSx сетки, physical groups, электроды, source region и геометрические проверки.
-- [`fem`](docs/fem.md) — DOLFINx/PETSc solver задачи Пуассона с чистыми условиями Неймана.
-- [`sources`](docs/sources.md) — геометрия P1 tetra и RHS точечного диполя в numpy и FEniCSx DOF ordering.
-- [`measurements`](docs/measurements.md) — интерполяция потенциала на электроды и reference-системы.
-- [`forward`](docs/forward.md) — полный pipeline `source -> rhs -> potential -> measurements -> result` и экспорт в ParaView.
-- [`green`](docs/green.md) — Green-задачи для строк measurement matrix, градиенты в candidate points и dipole transfer matrix.
-- [`inverse`](docs/inverse.md) — восстановление положения и момента одного диполя по `GreenTransferMatrix`.
-- [`benchmark`](docs/benchmark.md) — forward/inverse sweeps по sources, electrode subsets, noise models и reconstruction metrics.
+- импорт Gmsh/meshio сеток и physical groups;
+- `MeshData`, электроды, source regions и geometry validation;
+- scalar P1 DOLFINx/PETSc Poisson solver с pure-Neumann nullspace;
+- point-dipole RHS в MeshData node и DOLFINx DOF ordering;
+- interpolation/reference operator `M = R @ P`;
+- forward solve, measurements и VTX/XDMF export;
+- central projection внешних электродов на triangle surface;
+- Green basis и tensor `A[j, i, :] = grad G_i(x_j)`;
+- single-dipole Tikhonov/LS inverse search;
+- forward/inverse benchmark records, noise models и metrics;
+- convergence checks, profiling и diagnostics.
 
-Вспомогательный модуль [`verification`](verification/README.md) содержит unit-cube mesh refinement, manufactured solutions и convergence reports.
+## Repository structure
 
-## Important conventions
+| Path | Responsibility |
+| --- | --- |
+| `geometry/` | FEniCSx-independent mesh, electrode and source-region data |
+| `fem/` | DOLFINx mesh, P1 space, stiffness matrix, nullspace, KSP and cached mappings |
+| `sources/` | Point dipole geometry, RHS assembly and source diagnostics |
+| `measurements/` | Electrode location/projection, interpolation and references |
+| `forward/` | Forward orchestration, results and ParaView export |
+| `green/` | Green RHS, basis, gradients, transfer tensor and cache |
+| `inverse/` | Single-dipole reconstruction and metrics |
+| `benchmark/` | Forward/inverse scenarios, runners, noise and result I/O |
+| `verification/` | Manufactured solutions, refinement and convergence reports |
+| `performance/` | Timing, memory and cProfile helpers |
+| `examples/` | Runnable forward and full inverse tutorials |
+| `scripts/` | Full-pipeline and component profiling CLIs |
 
-- `MeshData` хранит node/cell ids в собственном ordering. Они не обязаны совпадать с DOLFINx DOF/cell ids.
-- Внутренний `field_data` имеет Gmsh-подобный формат `name -> (dim, tag)`. `meshio` возвращает `(tag, dim)`, поэтому импорт переворачивает пары.
-- Чистая задача Неймана имеет константное ядро. Solver использует PETSc `NullSpace` и фиксирует gauge решения.
-- Для точечного диполя используется `local_rhs = gradients_p1_tetra(vertices) @ moment`. Дискретный FEM/Green consistency test подтверждает transfer convention `g = A_j @ p` со знаком `+1`.
-- Измерения задаются как `y_raw = P u`, `g = R P u`; стандартный reference — `average`.
-- Green RHS строится как `K G_i = M_i^T` с обязательным отображением MeshData node ordering в DOLFINx DOF ordering.
-- Для ParaView предпочтителен VTX/BP. XDMF остаётся доступным как альтернативный формат.
+## Installation / requirements
 
-Подробности и диагностические процедуры собраны в [architecture](docs/architecture.md) и [debugging](docs/debugging.md).
+The repository currently has no packaged installer or pinned environment file. Run commands from the repository root in an environment containing:
 
-## Minimal example
+- Python 3.10+;
+- `numpy`, `scipy`, `meshio`;
+- `pytest` for tests;
+- DOLFINx, PETSc, `mpi4py`, `petsc4py`, UFL and Basix for FEM workflows;
+- ADIOS2/VTX support for `.bp` export;
+- optional `matplotlib` for geometry plots and `psutil` for process-memory sampling.
+
+Numpy-only modules and tests import without DOLFINx. The exact compatible DOLFINx stack is environment-specific, so install it through the distribution/container used for the solver.
+
+## Quick start: forward solve
+
+The included CLI reads the `domain` tetra physical group, solves one source and exports diagnostics:
+
+```bash
+python3 examples/forward_pipeline.py \
+  --mesh torso.msh \
+  --physical-name domain \
+  --position 0 0 0 \
+  --moment 0 0 1
+```
+
+The source position must lie inside the selected volume mesh. Outputs default to `output/potential.bp`, `output/potential.xdmf`, `output/rhs.bp`, `output/source_marker.bp` and `output/forward_summary.json`.
+
+Minimal Python API:
 
 ```python
-from geometry import ElectrodeSet, read_gmsh_meshio
 from fem import NeumannPoissonSolver
-from sources import PointDipole
 from forward import ForwardSolver, export_forward_result_to_vtx
+from geometry import ElectrodeSet, read_gmsh_meshio
+from sources import PointDipole
 
 tagged = read_gmsh_meshio("torso.msh", dim=3)
-volume_mesh = tagged.to_mesh_data(
-    cell_type="tetra",
-    physical_name="domain",
-)
-
+volume_mesh = tagged.to_mesh_data("tetra", physical_name="domain")
 electrodes = ElectrodeSet(
     positions=volume_mesh.points[[0, 1]].copy(),
     labels=["E1", "E2"],
 )
 
-solver = NeumannPoissonSolver(
-    mesh=volume_mesh,
-    degree=1,
-    sigma=1.0,
-)
-
+solver = NeumannPoissonSolver(volume_mesh, degree=1, sigma=1.0)
 try:
-    forward = ForwardSolver(
-        poisson_solver=solver,
-        electrodes=electrodes,
-        reference="average",
-    )
-    source = PointDipole(
-        position=[0.0, 0.0, 0.0],
-        moment=[0.0, 0.0, 1.0],
-    )
-    result = forward.solve(source)
+    pipeline = ForwardSolver(solver, electrodes=electrodes, reference="average")
+    source = PointDipole(position=[0.0, 0.0, 0.0], moment=[0.0, 0.0, 1.0])
+    result = pipeline.solve(source)
     export_forward_result_to_vtx(result, "output/potential.bp")
 finally:
     solver.destroy()
 ```
 
-Откройте `output/potential.bp` в ParaView.
+## Full inverse experiment on torso.msh
 
-## Running the included example
-
-`main.py` решает задачу на `torso.msh` и экспортирует potential, RHS и marker ячейки источника:
-
-```bash
-python3 main.py --position 0 0 0 --moment 0 0 1
-```
-
-Результаты записываются в `output/`.
-
-## Full inverse experiment example
-
-Полный tutorial-script для цепочки `torso.msh -> forward -> GreenTransferMatrix -> inverse -> report/export` находится в [`examples/full_inverse_experiment_torso.py`](examples/full_inverse_experiment_torso.py).
+The tutorial requires `domain` (dim 3) and `boundary` (dim 2) physical groups:
 
 ```bash
 python3 examples/full_inverse_experiment_torso.py \
@@ -103,9 +109,24 @@ python3 examples/full_inverse_experiment_torso.py \
   --lambda-reg 1e-10
 ```
 
-Электроды выбираются на surface mesh и проходят через существующий API центральной проекции `central_project_electrodes_to_surface`. Пример также экспортирует `electrodes.bp` — диагностический marker field ближайших FEM DOF к электродам. Подробности и список output-файлов: [examples/README.md](examples/README.md).
+It creates:
 
-Есть второй вариант примера с электродами, сначала квазиравномерно размещёнными на отсечённой сфере вокруг bbox, а затем спроецированными на торс:
+```text
+experiment_summary.json
+inverse_summary.json
+measurements.npz
+electrodes.csv
+electrode_surface_diagnostics.csv
+candidates.csv
+electrode_marker_mapping.csv
+potential.bp
+rhs.bp
+true_source_marker.bp
+estimated_source_marker.bp
+electrodes.bp
+```
+
+The clipped-sphere variant generates quasi-uniform outer points and centrally projects them onto the torso:
 
 ```bash
 python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
@@ -115,55 +136,40 @@ python3 examples/full_inverse_experiment_torso_clipped_sphere_electrodes.py \
   --num-candidates 50
 ```
 
-## Testing
+## ParaView outputs
 
-Основной набор тестов:
+Open `.bp` outputs directly in ParaView. `potential.bp` is the FEM potential, `rhs.bp` is the dipole RHS, and source marker fields identify the true/estimated DOLFINx cells.
 
-```bash
-pytest
+`electrodes.bp` is a diagnostic P1 nodal marker at the nearest FEM DOF, not an exact point cloud. Use `electrode_marker_mapping.csv` for actual electrode coordinates and nearest-DOF distances. XDMF remains supported; open the `.xdmf` file and keep its `.h5` companion beside it. Prefer VTX/BP if XDMF is empty or unstable in ParaView.
+
+## Green functions and inverse reconstruction
+
+For average-referenced measurements:
+
+```text
+K G_i = M_i^T
+A[j, i, :] = grad G_i(x_j)
+g = A_j p
 ```
-
-Numpy/scipy-тесты работают без DOLFINx. Реальные DOLFINx/MPI-тесты защищены переменной окружения и без неё будут skipped даже при установленном DOLFINx:
-
-```bash
-TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest
-```
-
-Численные проверки forward/FEM:
-
-```bash
-TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_forward_convergence.py test_poisson_manufactured_solution.py
-```
-
-Точечный диполь сингулярен, поэтому для него не требуется классическая глобальная L2-сходимость potential. Forward test проверяет стабилизацию average-referenced measurements вдали от источника. L2 convergence FEM solver отдельно проверяется на smooth manufactured cosine solution.
-
-Green/FEM reciprocity:
-
-```bash
-TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_green_module.py
-```
-
-Single-dipole inverse:
-
-```bash
-TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 \
-  pytest test_inverse_module.py
-```
-
-Минимальное использование inverse:
 
 ```python
+from green import GreenSolver, build_green_transfer_matrix
 from inverse import SingleDipoleInverseSolver
 
-inverse_solver = SingleDipoleInverseSolver(transfer, lambda_reg=1e-10)
-inverse_result = inverse_solver.solve(result.measurements)
-print(inverse_result.estimated_position)
-print(inverse_result.estimated_moment)
+green_basis = GreenSolver(solver, pipeline.measurement_operator).solve_all()
+transfer = build_green_transfer_matrix(solver, green_basis, candidate_points)
+inverse_result = SingleDipoleInverseSolver(
+    transfer,
+    lambda_reg=1e-10,
+    reference="average",
+).solve(result.measurements)
 ```
 
-Inverse benchmark from saved/generated forward records:
+The inverse layer always uses `transfer.matrix_for_candidate(j)`, which applies `GreenTransferMatrix.sign`.
+
+## Benchmarking
+
+`ForwardBenchmarkRunner` generates clean/noisy synthetic records. `InverseBenchmarkRunner` consumes a matching `GreenTransferMatrix`:
 
 ```python
 from benchmark import run_inverse_benchmark, save_inverse_benchmark_result
@@ -176,10 +182,11 @@ inverse_result = run_inverse_benchmark(
 save_inverse_benchmark_result(inverse_result, "results/inverse")
 ```
 
+One inverse scenario currently corresponds to one electrode subset/reference/transfer definition.
+
 ## Performance profiling
 
-Лёгкий profiler полного pipeline пишет `timing.csv`, `timing.json`,
-`memory.json` и `profile_summary.md`:
+Full-pipeline profile:
 
 ```bash
 python3 scripts/profile_full_inverse_experiment.py \
@@ -187,25 +194,71 @@ python3 scripts/profile_full_inverse_experiment.py \
   --output output/performance_profile \
   --num-electrodes 128 \
   --num-candidates 50 \
-  --max-green-rows 16 \
+  --max-green-rows 8 \
   --no-export
 ```
 
-Отчёт по bottlenecks и roadmap: [docs/performance_review.md](docs/performance_review.md).
+This writes `timing.csv`, `timing.json`, `memory.json` and `profile_summary.md`. Component profiles isolate point location, transfer construction and inverse scaling:
 
-## Documentation
+```bash
+python3 scripts/profile_components.py --component point-location --mesh torso_refined.msh
+python3 scripts/profile_components.py --component green-transfer --mesh torso_refined.msh
+python3 scripts/profile_components.py --component inverse-scaling
+```
+
+## Testing
+
+Numpy/scipy suite:
+
+```bash
+pytest
+```
+
+DOLFINx/MPI integration suite:
+
+```bash
+TMPDIR=/tmp OMPI_MCA_orte_tmpdir_base=/tmp RUN_DOLFINX_TESTS=1 pytest
+```
+
+Without `RUN_DOLFINX_TESTS=1`, DOLFINx tests are intentionally skipped.
+
+## Documentation map
 
 - [Architecture](docs/architecture.md)
+- [Conventions](docs/conventions.md)
+- [API overview](docs/api_overview.md)
 - [Geometry](docs/geometry.md)
 - [FEM](docs/fem.md)
 - [Sources](docs/sources.md)
 - [Measurements](docs/measurements.md)
-- [Forward pipeline](docs/forward.md)
-- [Green functions](docs/green.md)
+- [Forward](docs/forward.md)
+- [Green](docs/green.md)
 - [Inverse](docs/inverse.md)
-- [Debugging](docs/debugging.md)
-- [Examples](docs/examples.md)
-- [MeshData details](docs/mesh_data.md)
-- [Verification utilities](verification/README.md)
 - [Benchmark](docs/benchmark.md)
-- [Performance review](docs/performance_review.md)
+- [Performance](docs/performance.md)
+- [Examples](docs/examples.md)
+- [Debugging](docs/debugging.md)
+- [Documentation audit](docs/documentation_audit.md)
+
+## Important conventions
+
+- MeshData node/cell ids are not DOLFINx DOF/cell ids.
+- `SourceRegion.candidate_cell_ids` are MeshData ids; `GreenTransferMatrix.candidate_cell_ids` are local DOLFINx ids.
+- Never copy MeshData-ordered nodal values into a DOLFINx Function without the node-to-DOF map.
+- Point-dipole RHS uses `local_rhs = gradients_p1_tetra(vertices) @ moment`.
+- Measurements use `y_raw = P u`, `g = R P u`; `average` is the default reference.
+- The pure-Neumann potential is defined up to a constant; PETSc nullspace handling and referenced measurements remove that ambiguity.
+- Mesh, electrode and source coordinates must share one frame and unit system. No automatic mm/m conversion is performed.
+
+See [docs/conventions.md](docs/conventions.md) for the complete contract.
+
+## Known limitations
+
+- scalar, constant conductivity and P1 tetra FEM only;
+- node-to-DOF mapping and P1 locator are serial/owned-local-cell MVPs, not global MPI ownership maps;
+- one Green solve is performed per measurement channel;
+- Green functions are retained to build a transfer matrix, which can be memory-heavy;
+- central projection checks surface triangles per projected electrode;
+- inverse reconstruction supports one point dipole on a discrete candidate set;
+- transfer cache provenance is caller-provided and not yet schema-validated;
+- solver lifetime requires explicit `destroy()`.

@@ -213,3 +213,16 @@ results/single_dipole_inverse/
 Important restriction: one `InverseBenchmarkScenario` corresponds to one electrode subset and one `GreenTransferMatrix`. If a forward benchmark contains several electrode subsets, filter records before running inverse benchmark.
 
 Large residual maps and candidate moment maps are not saved by default. Store transfer matrices via the `green` cache when they should be reused across sweeps.
+
+## Reproducibility and transfer provenance
+
+Noise models own deterministic seeds, and scenario configs avoid serializing large mesh/measurement arrays. For cached `GreenTransferMatrix` files, include at least the following user metadata:
+
+- geometry/mesh identifier or hash;
+- electrode subset labels/order;
+- reference and measurement row indices;
+- conductivity `sigma`;
+- candidate source-region identifier and coordinate units;
+- transfer sign and code/version identifier when available.
+
+The current cache round-trips metadata but does not enforce this provenance schema. `InverseBenchmarkScenario` validates measurement length and one-electrode-subset usage; it cannot prove that a numerically compatible transfer came from the same geometry.

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 # Allow running as:
-#   python3 examples/full_inverse_experiment_torso.py ...
+#   python3 examples/geometry_advanced_usage.py
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -32,8 +32,8 @@ surface_mesh = mesh.to_mesh_data(
     physical_name="boundary",
 )
 
-print(volume_mesh.num_cells)  # должно быть 47158
-print(surface_mesh.num_cells)  # должно быть 7760
+print(volume_mesh.num_cells)
+print(surface_mesh.num_cells)
 
 print("physical tag domain:", mesh.physical_tag("domain"))
 

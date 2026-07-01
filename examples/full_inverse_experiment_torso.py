@@ -79,6 +79,12 @@ def parse_args() -> argparse.Namespace:
         default="average",
         help="Electrode reference system. Green solves usually require average or single.",
     )
+    parser.add_argument(
+        "--reference-index",
+        type=int,
+        default=None,
+        help="Electrode index required when --reference single is used.",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducible demo choices.")
     parser.add_argument("--no-export", action="store_true", help="Skip VTX/BP ParaView exports.")
     parser.add_argument(
@@ -657,6 +663,7 @@ def run_full_inverse_experiment(args: argparse.Namespace, electrode_builder=buil
             mesh=volume_mesh,
             electrodes=electrodes,
             reference=args.reference,
+            reference_index=args.reference_index,
             surface_mesh=surface_mesh,
         )
         forward = ForwardSolver(
@@ -791,6 +798,7 @@ def run_full_inverse_experiment(args: argparse.Namespace, electrode_builder=buil
             "num_candidates": int(candidate_points.shape[0]),
             "source_region_name": source_region.name,
             "reference": args.reference,
+            "reference_index": args.reference_index,
             "sigma": args.sigma,
             "snr_db": args.snr_db,
             "lambda_reg": args.lambda_reg,
